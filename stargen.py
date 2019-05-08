@@ -36,10 +36,11 @@ sample["Stellar Mass(es)"] = []
 # todo: this is not how GURPs generates companion masses, the way they do it is more complicated and results
 # in companion stars of generally much lower stellar masses
 for _ in range(sample["Number of Stars"]):
-    sample["Stellar Mass(es)"].append(round(look_up(look_up(st.stellar_mass_table_first_roll, 3), 3)+random.uniform(-0.03,0.03),3))
+    sample["Stellar Mass(es)"].append(look_up(look_up(st.stellar_mass_table_first_roll, 3), 3))
     sample["Stellar Mass(es)"].sort(reverse=True)
     if min(sample["Stellar Mass(es)"]) < 0.08:
         sample["Stellar Mass(es)"][sample["Stellar Mass(es)"].index(min(sample["Stellar Mass(es)"]))] = 0.08
+
 
 # Calculate stellar age
 temp = look_up(st.stellar_age_table, 3)
