@@ -1,6 +1,8 @@
 import argparse
+import math
 import random
 import startables as st
+import startables_basic as stb
 from intervaltree import Interval, IntervalTree
 # todo: most of these calculations are done without assuming the system contains a garden world
 
@@ -12,7 +14,6 @@ parser.add_argument("-s", "--seed", help="seed to be used for random number gene
 args = parser.parse_args()
 
 random.seed(a=args.seed)
-sample = {}
 
 # method to generate random numbers as a 6 sided die roll
 def roll_dice(number_of_dice=1, modifier=0):
@@ -28,43 +29,70 @@ def look_up(table, number_of_dice=1, modifier=0):
 def look_up_value(table, value):
     return sorted(table[value])[0].data
 
-# Calculate number of stars
-sample["Number of Stars"] = look_up(st.multiple_stars_table, 3)
-sample["Stellar Mass(es)"] = []
 
-# Calculate stellar masses
-# todo: this is not how GURPs generates companion masses, the way they do it is more complicated and results
-# in companion stars of generally much lower stellar masses
-for _ in range(sample["Number of Stars"]):
-    sample["Stellar Mass(es)"].append(look_up(look_up(st.stellar_mass_table_first_roll, 3), 3))
-    sample["Stellar Mass(es)"].sort(reverse=True)
-    if min(sample["Stellar Mass(es)"]) < 0.08:
-        sample["Stellar Mass(es)"][sample["Stellar Mass(es)"].index(min(sample["Stellar Mass(es)"]))] = 0.08
+# class for individual star vs whole system?
+class Star():
+    def __init__(self, mass=None, age=None):
+        self.mass = mass if mass else self.calculate_stellar_mass()
+        self.age = age if age else self.calculate_stellar_age()
+        self.type = self.calculate_stellar_type(self.mass)
+        self.sequence = self.calculate_stellar_sequence(self.mass, self.age)
+        self.temperature = self.calculate_stellar_temperature(self.mass, self.age, self.sequence)
+        self.luminosity = self.calculate_stellar_luminosity(self.mass, self.age, self.sequence)
+        self.radius = self.calculate_stellar_radius(self.temperature, self.luminosity)
 
+    def calculate_stellar_mass(self):
+        return look_up(look_up(st.stellar_mass_table_first_roll, 3), 3)
 
-# Calculate stellar age
-temp = look_up(st.stellar_age_table, 3)
-sample["Star System Age"] = round((temp[0] + temp[1]*roll_dice(1,-1) + temp[2]*roll_dice(1,-1)), 3)
-temp = None
+    def calculate_stellar_age(self):
+        temp = look_up(st.stellar_age_table, 3)
+        return round((temp[0] + temp[1]*roll_dice(1,-1) + temp[2]*roll_dice(1,-1)), 3)
 
-sample["Star Type(s)"] = []
-sample["Star Sequence(s)"] = []
-sample["Star Effective Temperature(s)"] = []
-sample["Star Current Luminosity"] = []
-# Calculate stellar characteristics
-for i in range(sample["Number of Stars"]):
-    temp = look_up_value(st.stellar_evolution_table, sample["Stellar Mass(es)"][i])
-    sample["Star Type(s)"].append(temp[0])
-    if temp[4] and sample["Star System Age"] <= temp[4] or not temp[4]:
-        sample["Star Sequence(s)"].append("V")
-    elif temp[4] and temp[5] and sample["Star System Age"] > temp[4] and sample["Star System Age"] <= temp[4]+temp[5]:
-        sample["Star Sequence(s)"].append("IV")
-    elif temp[4] and temp[5] and temp[6] and sample["Star System Age"] > temp[4]+temp[5] and sample["Star System Age"] <= temp[4]+temp[5]+temp[6]:
-        sample["Star Sequence(s)"].append("III")
-    else:
-        sample["Star Sequence(s)"].append("D")
-    temp = None
+    def calculate_stellar_type(self, mass):
+        return look_up_value(st.stellar_evolution_table, mass)[0]
+
+    def calculate_stellar_sequence(self, mass, age):
+        temp = look_up_value(st.stellar_evolution_table, mass)
+        if temp[5] is None:
+            return "V"
+        elif age > temp[4]+temp[5]+temp[6]:
+            return "D"
+        elif age > temp[4]+temp[5]:
+            return "III"
+        elif age > temp[4]:
+            return "IV"
+        else:
+            return "V"
+            
+    def calculate_stellar_temperature(self, mass, age, sequence):
+        temp = look_up_value(st.stellar_evolution_table, mass)
+        if sequence == "V":
+            return temp[1]
+        elif sequence == "IV":
+            return temp[1]-(((age-temp[4])/temp[5])*(temp[1]-4800))
+        elif sequence == "III":
+            return 3000+200*roll_dice(2,-2)
+        else:
+            return None
     
-    
+    def calculate_stellar_luminosity(self, mass, age, sequence):
+        temp = look_up_value(st.stellar_evolution_table, mass)
+        if sequence == "V":
+            return round(temp[2]+((age/temp[4])*(temp[3]-temp[2])),4) if temp[3] else temp[2]
+        elif sequence == "IV":
+            return temp[3]
+        elif sequence == "III":
+            return temp[3]*25
+        else:
+            return 0.001
 
-print(sample)
+    def calculate_stellar_radius(self, temperature, luminosity):
+        return round((155000*math.sqrt(luminosity))/(math.pow(temperature,2)),4) if temperature else None   
+
+test = Star()
+print("Spectral type {0} {1}".format(test.type, test.sequence))
+print("mass {} solar masses".format(test.mass))
+print("age {} billion years".format(test.age))
+print("effective temperature {} kelvin".format(test.temperature))
+print("luminosity {} solar luminosities".format(test.luminosity))
+print("radius {} AU".format(test.radius))
