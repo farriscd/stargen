@@ -1,5 +1,9 @@
 from intervaltree import Interval, IntervalTree
 
+# todo: consider removing 'stellar' description from trees, rename whole
+#file 'stellar' or keep 'star' tables and have a seperate file for
+#planet/orbiting body tables/trees
+
 # Step 15: Number of Stars
 # modifiers: +3 if system is located within an open cluster
 multiple_stars_table = IntervalTree()
@@ -128,5 +132,39 @@ stellar_evolution_table[1.80:1.80+0.01] = ["A7", 7800, 11, 13, 1.8, 0.3, 0.2]
 stellar_evolution_table[1.90:1.90+0.01] = ["A6", 8000, 13, 16, 1.5, 0.2, 0.1]
 stellar_evolution_table[2.00:2.00+0.01] = ["A5", 8200, 16, 20, 1.3, 0.2, 0.1]
 
+stellar_evolution_table_reverse = IntervalTree()
+stellar_evolution_table_reverse[0:3150] = "M7" 
+stellar_evolution_table_reverse[3150:3200] = "M6"
+stellar_evolution_table_reverse[3200:3250] = "M5"
+stellar_evolution_table_reverse[3250:3350] = "M4"
+stellar_evolution_table_reverse[3350:3450] = "M3"
+stellar_evolution_table_reverse[3450:3550] = "M2"
+stellar_evolution_table_reverse[3550:3650] = "M1"
+stellar_evolution_table_reverse[3650:3900] = "M0"
+stellar_evolution_table_reverse[3900:4100] = "K8"
+stellar_evolution_table_reverse[4100:4300] = "K6"
+stellar_evolution_table_reverse[4300:4500] = "K5"
+stellar_evolution_table_reverse[4500:4700] = "K4"
+stellar_evolution_table_reverse[4700:5050] = "K2"
+stellar_evolution_table_reverse[5050:5300] = "K0"
+stellar_evolution_table_reverse[5300:5450] = "G8"
+stellar_evolution_table_reverse[5450:5600] = "G6"
+stellar_evolution_table_reverse[5600:5750] = "G4"
+stellar_evolution_table_reverse[5750:5850] = "G2"
+stellar_evolution_table_reverse[5850:5950] = "G1"
+stellar_evolution_table_reverse[5950:6050] = "G0"
+stellar_evolution_table_reverse[6050:6200] = "F9"
+stellar_evolution_table_reverse[6200:6350] = "F8"
+stellar_evolution_table_reverse[6350:6450] = "F7"
+stellar_evolution_table_reverse[6450:6550] = "F6"
+stellar_evolution_table_reverse[6550:6650] = "F5"
+stellar_evolution_table_reverse[6650:6800] = "F4"
+stellar_evolution_table_reverse[6800:6950] = "F3"
+stellar_evolution_table_reverse[6950:7150] = "F2"
+stellar_evolution_table_reverse[7150:7400] = "F0"
+stellar_evolution_table_reverse[7400:7650] = "A9"
+stellar_evolution_table_reverse[7650:7900] = "A7"
+stellar_evolution_table_reverse[7900:8100] = "A6"
+stellar_evolution_table_reverse[8100:10000] = "A5"
 # Step 19:  Companion Star Orbits
 

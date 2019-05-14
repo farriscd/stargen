@@ -6,11 +6,16 @@ import startables_basic as stb
 from intervaltree import Interval, IntervalTree
 # todo: most of these calculations are done without assuming the system contains a garden world
 
+def int_or_str(x):
+    try:
+        return int(x)
+    except ValueError:
+        return str(x)
 
 # todo: seed argument always taken as string and interpreted as string by random.seed
 parser = argparse.ArgumentParser()
 #parser.add_argument("-a", "--advanced", action="count", help="enable advanced system generation")
-parser.add_argument("-s", "--seed", help="seed to be used for random number generation")
+parser.add_argument("-s", "--seed", help="seed to be used for random number generation", type=int_or_str)
 args = parser.parse_args()
 
 random.seed(a=args.seed)
@@ -40,6 +45,8 @@ class Star():
         self.temperature = self.calculate_stellar_temperature(self.mass, self.age, self.sequence)
         self.luminosity = self.calculate_stellar_luminosity(self.mass, self.age, self.sequence)
         self.radius = self.calculate_stellar_radius(self.temperature, self.luminosity)
+
+        self.readjust_stellar_characteristics(self.sequence, self.temperature)
 
     def calculate_stellar_mass(self):
         return look_up(look_up(st.stellar_mass_table_first_roll, 3), 3)
@@ -87,12 +94,24 @@ class Star():
             return 0.001
 
     def calculate_stellar_radius(self, temperature, luminosity):
-        return round((155000*math.sqrt(luminosity))/(math.pow(temperature,2)),4) if temperature else None   
+        return round((155000*math.sqrt(luminosity))/(math.pow(temperature,2)),4) if temperature else None
 
-test = Star()
-print("Spectral type {0} {1}".format(test.type, test.sequence))
-print("mass {} solar masses".format(test.mass))
-print("age {} billion years".format(test.age))
-print("effective temperature {} kelvin".format(test.temperature))
-print("luminosity {} solar luminosities".format(test.luminosity))
-print("radius {} AU".format(test.radius))
+    # this is to adjust the stellar type and other stats if they are non main sequence
+    def readjust_stellar_characteristics(self, sequence, temperature):
+        if sequence == "D":
+            self.type = None
+            self.mass = round(0.9+roll_dice(2,-2)*0.05,4)
+        if sequence == "IV":
+            self.type = look_up_value(st.stellar_evolution_table_reverse, temperature)
+        if sequence == "III":
+            self.type = look_up_value(st.stellar_evolution_table_reverse, temperature)
+
+
+if __name__ == "__main__":
+    test = Star()
+    print("Spectral type {0} {1}".format(test.type, test.sequence))
+    print("mass {} solar masses".format(test.mass))
+    print("age {} billion years".format(test.age))
+    print("effective temperature {} kelvin".format(test.temperature))
+    print("luminosity {} solar luminosities".format(test.luminosity))
+    print("radius {} AU".format(test.radius))
