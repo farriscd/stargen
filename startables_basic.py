@@ -25,7 +25,7 @@ world_type_table[17:17+1] = ["Large (Chthonian)", "Large (Ocean)", "Large (Garde
 world_type_table[18:18+1] = ["Large (Chthonian)", "Large (Ice)", "Large (Garden)"]
 
 # Step 3: Atmosphere
-#table slightly modified to account for atm ranges
+# table slightly modified to account for atm ranges
 atmospheric_pressure_categories_table = IntervalTree()
 atmospheric_pressure_categories_table[0:0.01] = "Trace"
 atmospheric_pressure_categories_table[0.01:0.50+0.01] = "Very Thin"
