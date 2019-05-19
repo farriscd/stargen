@@ -5,7 +5,6 @@ import startables as st
 import startables_basic as stb
 from intervaltree import Interval, IntervalTree
 from typing import Any, Union, Optional, List
-# todo: Do I have to import the typing library to use type hinting
 
 def int_or_str(x: str) -> Union[int, str]:
     """Return argument as integer or string"""
@@ -193,7 +192,6 @@ class CompanionStar(Star):
         orbital_separation (list: str, float):
         semi_major_axis (float):
         eccentricity (float):
-        forbidden_zone (list: float, float):
     """
 
     def __init__(self, designation: int, mass: float, age: float) -> None:
@@ -202,7 +200,7 @@ class CompanionStar(Star):
         self.orbital_separation = self.calculate_orbital_separation(self.designation, self.guarantee_garden_world)
         self.semi_major_axis = self.calculate_semi_major_axis(self.orbital_separation[1])
         self.eccentricity = self.calculate_eccentricity(self.orbital_separation[0])
-        self.forbidden_zone = self.calculate_forbidden_zone(self.semi_major_axis, self.eccentricity)
+
 
 # todo: Complete generation of distant companion subcompanions
 # todo: Make sure trinary star systems adhere to the suggested guidelines
@@ -218,10 +216,6 @@ class CompanionStar(Star):
         """Return the eccentricity for a companion star orbit"""
         return look_up(st.stellar_orbital_eccentricity_table, roll_dice(3, -6 if separation == "Very Close" else -4 if separation == "Close" else -2 if separation == "Moderate" else 0))
 
-    def calculate_forbidden_zone(self, semi_major_axis: float, eccentricity: float) -> Any:
-        """Return a list containing points designating a system forbidden zone"""
-        return [((1-eccentricity)*semi_major_axis)/3, ((1+eccentricity)*semi_major_axis)*3]
-
     def print_summary(self) -> None:
         """Print the attributes of the companion star in a human readable format"""
         print(f"Companion Star {self.designation}")
@@ -229,8 +223,6 @@ class CompanionStar(Star):
         print(f"eccentricity {self.eccentricity}")
         print("")
         Star.print_summary(self)
-        print(f"forbidden zone inner edge {self.forbidden_zone[0]}")
-        print(f"forbidden zone outer edge {self.forbidden_zone[1]}")
 
 class Planet(object):
     """
@@ -260,6 +252,11 @@ class StarSystem(object):
         self.number_of_stars = self.calculate_number_of_stars(self.is_in_open_cluster)
         self.stars = self.calculate_stars(self.number_of_stars, self.guarantee_garden_world)
 
+        self.forbidden_zone = self.calculate_forbidden_zone(self.stars)
+
+        self.gas_giants = self.calculate_gas_giants(self.stars, self.forbidden_zone)
+        self.orbits = None
+
     def calculate_number_of_stars(self, is_in_open_cluster: bool) -> int:
         """Return a randomly generated number of stars"""
         return look_up(st.multiple_stars_table, roll_dice(3, 3 if is_in_open_cluster else 0))
@@ -279,6 +276,25 @@ class StarSystem(object):
                 stars.append(Star(None, None, guarantee_garden_world))
         return stars
 
+    def calculate_forbidden_zone(self, stars: List[Star]) -> Any:
+        """Return a list containing points designating a system forbidden zone"""
+        forbidden_zone = []
+        for star in stars:
+            if type(star) == CompanionStar:
+                forbidden_zone.append([((1-star.eccentricity)*star.semi_major_axis)/3, ((1+star.eccentricity)*star.semi_major_axis)*3])
+        return forbidden_zone
+
+    def calculate_gas_giants(self, stars: List[Star], forbidden_zone: List[float]) -> List[str]:
+        gas_giants = []
+        for star in stars:
+            arrangement = None
+            for zone in forbidden_zone:
+                if star.snow_line_radius >= zone[0] and star.snow_line_radius <= zone[1]:
+                    arrangement = "No Gas Giant"
+                    break
+            gas_giants.append(arrangement) if arrangement else gas_giants.append(look_up(st.gas_giant_arrangement_table, roll_dice(3)))
+        return gas_giants
+
     def print_summary(self) -> None:
         """Prints the attributes of all system stars in a human readable format"""
         print("")
@@ -286,7 +302,10 @@ class StarSystem(object):
         for i in self.stars:
             i.print_summary()
             print("")
+        print(f"forbidden zone(s) {self.forbidden_zone}")
+        print(f"gas giant arrangement(s) {self.gas_giants}")
+
 
 if __name__ == "__main__":
     test_system = StarSystem()
-    test_system.print_summary()   
+    test_system.print_summary()
