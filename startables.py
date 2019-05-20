@@ -187,7 +187,7 @@ orbital_separation_table[12:14+1] = ["Wide", 10.0]
 orbital_separation_table[15:100+1] = ["Distant", 50.0]
 
 stellar_orbital_eccentricity_table = IntervalTree()
-stellar_orbital_eccentricity_table[0:3+1] = 0
+stellar_orbital_eccentricity_table[-3:3+1] = 0
 stellar_orbital_eccentricity_table[4:4+1] = 0.1
 stellar_orbital_eccentricity_table[5:5+1] = 0.2
 stellar_orbital_eccentricity_table[6:6+1] = 0.3
