@@ -223,12 +223,12 @@ gas_giant_size_table[11:16+1] = "Medium"
 gas_giant_size_table[17:100+1] = "Large"
 
 orbit_contents_table = IntervalTree()
-orbit_contents_table[0:3+1] = "Empty Orbit"
+orbit_contents_table[-100:3+1] = "Empty Orbit"
 orbit_contents_table[4:6+1] = "Asteroid Belt"
-orbit_contents_table[7:8+1] = "Terrestrial Planet (Tiny)"
-orbit_contents_table[9:11+1] = "Terrestrial Planet (Small)"
-orbit_contents_table[12:15+1] = "Terrestrial Planet (Standard)"
-orbit_contents_table[16:100+1] = "Terrestrial Planet (Large)"
+orbit_contents_table[7:8+1] = ["Terrestrial Planet", "Tiny"]
+orbit_contents_table[9:11+1] = ["Terrestrial Planet", "Small"]
+orbit_contents_table[12:15+1] = ["Terrestrial Planet", "Standard"]
+orbit_contents_table[16:100+1] = ["Terrestrial Planet", "Large"]
 
 # Stepd 24: Place Moons
 moon_size_table = IntervalTree()

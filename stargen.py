@@ -227,6 +227,21 @@ class CompanionStar(Star):
 class Planet(object):
     """
     """
+    def __init__(self, orbital_radius: float, size: str) -> None:
+        self.orbital_radius = orbital_radius
+        self.size = size
+
+class GasGiant(Planet):
+    """
+    """
+    def __init__(self, orbital_radius: float, size: str) -> None:
+        Planet.__init__(self, orbital_radius, size)
+
+class TerrestrialPlanet(Planet):
+    """
+    """
+    def __init__(self, orbital_radius: float, size: str) -> None:
+        Planet.__init__(self, orbital_radius, size)
 
 # todo: Find someway to fudge all the numbers after calculations have been made to add
 #   variance
@@ -255,7 +270,10 @@ class StarSystem(object):
         self.forbidden_zone = self.calculate_forbidden_zone(self.stars)
 
         self.gas_giants = self.calculate_gas_giants(self.stars, self.forbidden_zone)
-        self.orbits = None
+        self.orbits = self.calculate_first_orbit(self.stars, self.gas_giants)
+        self.orbits =  self.calculate_orbits(self.orbits, self.forbidden_zone)
+        self.orbits = self.place_gas_giants(self.orbits, self.gas_giants)
+        self.orbits = self.fill_remaining_orbits(self.orbits, self.forbidden_zone)
 
     def calculate_number_of_stars(self, is_in_open_cluster: bool) -> int:
         """Return a randomly generated number of stars"""
@@ -276,7 +294,7 @@ class StarSystem(object):
                 stars.append(Star(None, None, guarantee_garden_world))
         return stars
 
-    def calculate_forbidden_zone(self, stars: List[Star]) -> Any:
+    def calculate_forbidden_zone(self, stars: List[Star]) -> List[float]:
         """Return a list containing points designating a system forbidden zone"""
         forbidden_zone = []
         for star in stars:
@@ -284,16 +302,127 @@ class StarSystem(object):
                 forbidden_zone.append([((1-star.eccentricity)*star.semi_major_axis)/3, ((1+star.eccentricity)*star.semi_major_axis)*3])
         return forbidden_zone
 
+    def in_forbidden_zone(self, forbidden_zone: List[float], radius: float) -> bool:
+        """Return whether or not a given radius falls within a set of forbidden zones"""
+        for inner_radius, outer_radius in forbidden_zone:
+            if radius >= inner_radius and radius <= outer_radius:
+                return True
+        return False
+
     def calculate_gas_giants(self, stars: List[Star], forbidden_zone: List[float]) -> List[str]:
+        """Return a list of gas giant arrangement corresponding to each star in system"""
         gas_giants = []
         for star in stars:
-            arrangement = None
-            for zone in forbidden_zone:
-                if star.snow_line_radius >= zone[0] and star.snow_line_radius <= zone[1]:
-                    arrangement = "No Gas Giant"
-                    break
-            gas_giants.append(arrangement) if arrangement else gas_giants.append(look_up(st.gas_giant_arrangement_table, roll_dice(3)))
+            if self.in_forbidden_zone(forbidden_zone, star.snow_line_radius):
+                gas_giants.append("No Gas Giant")
+                continue
+            else:
+                gas_giants.append(look_up(st.gas_giant_arrangement_table, roll_dice(3)))
         return gas_giants
+
+# todo: Current calculations allow orbits to fall within forbidden zones
+# todo: Nothing for placing a pre-designed world, not sure if that is a feature or add
+#   or not, something that would use the guarantee_garden_world check
+    def calculate_first_orbit(self, stars: List[Star], gas_giants: List[str]) -> Any:
+        """Return a list containing stars and their corresponding first gas giant orbit"""
+        orbits = []
+        for i, star in enumerate(stars):
+            orbit = [star]
+            if gas_giants[i] == "Conventional Gas Giant":
+                orbit.append([(1+roll_dice(2,-2)*0.05)*star.snow_line_radius, "Gas Giant"])
+            elif gas_giants[i] == "Eccentric Gas Giant":
+                orbit.append([(roll_dice(1)*0.125)*star.snow_line_radius, "Gas Giant"])
+            elif gas_giants[i] == "Epistellar Gas Giant":
+                orbit.append([(1+roll_dice(3)*0.1)*star.inner_limit_radius, "Gas Giant"])
+            orbits.append(orbit)
+        return orbits
+
+# todo: Man this is just gross looking
+    def calculate_orbits(self, orbits: Any, forbidden_zone: List[float]) -> Any:
+        for orbit in orbits:
+            if len(orbit) > 1:
+                temp_radius = orbit[1][0]
+            else:
+                temp_radius = orbit[0].outer_limit_radius/(1+0.05*roll_dice(1))
+                if not self.in_forbidden_zone(forbidden_zone, temp_radius):
+                    orbit.append([temp_radius])
+            while True:
+                if temp_radius/look_up(st.orbital_spacing_table, roll_dice(3)) > temp_radius - 0.15:
+                    temp_radius = temp_radius - 0.15
+                else:
+                    temp_radius = temp_radius/look_up(st.orbital_spacing_table, roll_dice(3))
+                if not self.in_forbidden_zone(forbidden_zone, temp_radius) and temp_radius >= orbit[0].inner_limit_radius:
+                    orbit.append([temp_radius])
+                if temp_radius >= orbit[0].inner_limit_radius:
+                    continue
+                else:
+                    break
+            if len(orbit) > 1:
+                temp_radius = orbit[1][0]
+            else:
+                temp_radius = (1+0.05*roll_dice(1))/orbit[0].outer_limit_radius
+                if not self.in_forbidden_zone(forbidden_zone, temp_radius):
+                    orbit.append([temp_radius])
+            while True:
+                if temp_radius*look_up(st.orbital_spacing_table, roll_dice(3)) < temp_radius + 0.15:
+                    temp_radius = temp_radius + 0.15
+                else:
+                    temp_radius = temp_radius*look_up(st.orbital_spacing_table, roll_dice(3))
+                if not self.in_forbidden_zone(forbidden_zone, temp_radius) and temp_radius <= orbit[0].outer_limit_radius:
+                    orbit.append([temp_radius])
+                if temp_radius <= orbit[0].outer_limit_radius:
+                    continue
+                else:
+                    break
+            if len(orbit) > 1:
+                orbit[1:] = sorted(orbit[1:])                
+        return orbits
+
+    def place_gas_giants(self, orbits: Any, gas_giants: Any) -> Any:
+        for idx, orbit in enumerate(orbits):
+            if gas_giants[idx] == "No Gas Giant":
+                continue
+            for i in range(1, len(orbit)):
+                # I am assuming that this is the pre-assigned gas giant and that it is either inside
+                #   the snow line or is the first orbit beyond the snow line
+                if len(orbit[i]) > 1 and orbit[i][1] == "Gas Giant":
+                    orbit[i][1] = GasGiant(orbit[i][0], look_up(st.gas_giant_size_table, roll_dice(3, 4)))
+                    continue
+                if gas_giants[idx] == "Conventional Gas Giant" and orbit[i][0] >= orbit[0].snow_line_radius and roll_dice(3) <= 15:
+                    orbit[i].append(GasGiant(orbit[i][0], look_up(st.gas_giant_size_table, roll_dice(3))))
+                elif gas_giants[idx] == "Eccentric Gas Giant" and ((orbit[i][0] >= orbit[0].snow_line_radius and roll_dice(3) <= 14) or (orbit[i][0] <= orbit[0].snow_line_radius and roll_dice(3) <= 8)):
+                    orbit[i].append(GasGiant(orbit[i][0], look_up(st.gas_giant_size_table, roll_dice(3, 4 if orbit[i][0] <= orbit[0].snow_line_radius else 0))))
+                elif gas_giants[idx] == "Epistellar Gas Giant" and ((orbit[i][0] >= orbit[0].snow_line_radius and roll_dice(3) <= 14) or (orbit[i][0] <= orbit[0].snow_line_radius and roll_dice(3) <= 6)):
+                    orbit[i].append(GasGiant(orbit[i][0], look_up(st.gas_giant_size_table, roll_dice(3, 4 if orbit[i][0] <= orbit[0].snow_line_radius else 0))))
+        return orbits
+
+    def fill_remaining_orbits(self, orbits: Any, forbidden_zone: Any) -> Any:
+        for orbit in orbits:
+            for i in range(1, len(orbit)):
+                if len(orbit[i]) > 1:
+                    continue
+                modifier = 0
+                # this should find the closest radii to the inner and outer limit radii
+                if orbit[i][0] == min(orbit[1:], key=lambda x:abs(x[0]-orbit[0].inner_limit_radius))[0] or orbit[i][0] == min(orbit[1:], key=lambda x:abs(x[0]-orbit[0].outer_limit_radius))[0]:
+                    modifier = modifier - 3
+                # this should find if the next orbit is a gas giant
+                if i < len(orbit)-1 and len(orbit[i+1]) > 1 and type(orbit[i+1][1]) == GasGiant:
+                    modifier = modifier - 6
+                # this should find if the previous orbit is a gas giant
+                if i > 1 and len(orbit[i-1]) > 1 and type(orbit[i-1][1]) == GasGiant:
+                    modifier = modifier - 3
+                # this should find the radii closest to the forbidden zone limits
+                for zone in forbidden_zone:
+                    if orbit[i][0] == min(orbit[1:], key=lambda x:abs(x[0]-zone[0]))[0] or orbit[i][0] == min(orbit[1:], key=lambda x:abs(x[0]-zone[1]))[0]:
+                        modifier = modifier -6
+                        break
+                roll = roll_dice(3, modifier)
+                orbit_contents = look_up(st.orbit_contents_table, roll)
+                if type(orbit_contents) == list:
+                    orbit[i].append(TerrestrialPlanet(orbit[i][0], orbit_contents[1]))
+                else:
+                    orbit[i].append(orbit_contents)
+        return orbits
 
     def print_summary(self) -> None:
         """Prints the attributes of all system stars in a human readable format"""
@@ -304,8 +433,12 @@ class StarSystem(object):
             print("")
         print(f"forbidden zone(s) {self.forbidden_zone}")
         print(f"gas giant arrangement(s) {self.gas_giants}")
+        print(f"orbits {self.orbits}")
 
 
 if __name__ == "__main__":
     test_system = StarSystem()
-    test_system.print_summary()
+    #test_system.print_summary()
+    for orbits in test_system.orbits:
+       for orbit in orbits:
+            print(orbit)
