@@ -29,5 +29,7 @@ if __name__ == "__main__":
                 print([offset, orbit])
             elif type(orbit) == generator.Star:
                 print(orbit)
+            elif isinstance(orbit[1], generator.Planet):
+                print([orbit[0]+offset, orbit[1], orbit[1].moons, orbit[1].ring_system])
             else:
                 print([orbit[0]+offset, orbit[1]])
