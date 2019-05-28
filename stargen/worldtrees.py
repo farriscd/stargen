@@ -14,13 +14,37 @@ from intervaltree import Interval, IntervalTree
 
 # World Types
 tiny_world_type_assignment_tree = IntervalTree()
-tiny_world_type_assignment_tree
+tiny_world_type_assignment_tree[0:140+1] = ["Tiny (Ice)", "Tiny (Sulfur)"]
+tiny_world_type_assignment_tree[141:1000+1] = ["Tiny (Rock)"]
 
 small_world_type_assignment_tree = IntervalTree()
-small_world_type_assignment_tree
+small_world_type_assignment_tree[0:80+1] = ["Small (Hadean)"]
+small_world_type_assignment_tree[81:140+1] = ["Small (Ice)"]
+small_world_type_assignment_tree[141:1000+1] = ["Small (Rock)"]
 
 standard_world_type_assignment_tree = IntervalTree()
-standard_world_type_assignment_tree
+standard_world_type_assignment_tree[0:80+1] = ["Standard (Hadean)"]
+standard_world_type_assignment_tree[81:150+1] = ["Standard (Ice)"]
+standard_world_type_assignment_tree[151:230+1] = ["Standard (Ice)", "Standard (Ammonia)"]
+standard_world_type_assignment_tree[231:240+1] = ["Standard (Ice)"]
+standard_world_type_assignment_tree[241:320+1] = ["Standard (Ocean)", "Standard (Garden)"]
+standard_world_type_assignment_tree[321:500+1] = ["Standard (Greenhouse)"]
+standard_world_type_assignment_tree[501:1000+1] = ["Standard (Chthonian)"]
 
 large_world_type_assignment_tree = IntervalTree()
-large_world_type_assignment_tree
+large_world_type_assignment_tree[0:150+1] = ["Large (Ice)"]
+large_world_type_assignment_tree[151:230+1] = ["Large (Ice)", "Large (Ammonia)"]
+large_world_type_assignment_tree[231:240+1] = ["Large (Ice)"]
+large_world_type_assignment_tree[241:320+1] = ["Large (Ocean)", "Large (Garden)"]
+large_world_type_assignment_tree[321:500+1] = ["Large (Greenhouse)"]
+large_world_type_assignment_tree[501:1000+1] = ["Large (Chthonian)"]
+
+# Atmosphere
+# import basictrees as bt
+# bt.atmospheric_pressure_categories_tree
+# bt.marginal_atmospheres_trees
+
+# Hydrographics
+
+# Climate
+# 

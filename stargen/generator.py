@@ -231,6 +231,20 @@ class Planet(object):
         self.moons = None
         self.ring_system = None
 
+    def calculate_moon_size(self, moons: List[int], size: str) -> List[str]:
+        """Return a list containing the sizes of a planets major moons"""
+        major_moons = []
+        if moons[1] == 0:
+            return major_moons
+        else:
+            for _ in range(moons[1]):
+                major_moons.append(size_list[max(size_list.index(size)+look_up(st.moon_size_tree, roll_dice(3)), 0)])
+        return major_moons
+
+    def calculate_blackbody_temperature(self, luminosity: float, radius: float) -> float:
+        blackbody_temperature = 0
+        return blackbody_temperature
+
 class GasGiant(Planet):
     """
     """
@@ -238,7 +252,7 @@ class GasGiant(Planet):
         Planet.__init__(self, orbital_radius, absolute_orbital_radius, size)
 
         self.moons = self.generate_moons(self.absolute_orbital_radius)
-        self.major_moons = self.calculate_moon_size(self.moons)
+        self.major_moons = self.calculate_moon_size(self.moons, "Large")
         self.ring_system = self.generate_rings(self.moons)
 
     def generate_moons(self, absolute_orbital_radius: float) -> List[int]:
@@ -255,18 +269,10 @@ class GasGiant(Planet):
             modifiers = [0, 0, -1]
         else:
             modifiers = [0, 0, 0]
-        return [max(roll_dice(2, modifiers[0]), 0), max(roll_dice(1, modifiers[1]), 0), max(roll_dice(1, modifiers[2]), 0)]
-
-    def calculate_moon_size(self, moons: List[int]) -> List[str]:
-        """Return a list containing the sizes of a planets major moons"""
-        major_moons = []
-        if moons[1] == 0:
-            return major_moons
-        else:
-            for _ in range(moons[1]):
-                major_moons.append(size_list[max(size_list.index("Large")+look_up(st.moon_size_tree, roll_dice(3)), 0)])
-        print(major_moons)
-        return major_moons
+        inner_moonlets = max(roll_dice(2, modifiers[0]), 0)
+        major_moons = max(roll_dice(1, modifiers[1]), 0)
+        irregular_moonlets = max(roll_dice(1, modifiers[2]), 0)
+        return [inner_moonlets, major_moons, irregular_moonlets]
 
     def generate_rings(self, moons: List[int]) -> str:
         """Return the visibility of a gas giants rings based on moons"""
@@ -302,19 +308,9 @@ class TerrestrialPlanet(Planet):
             modifier = modifier - 1
         elif size == "Large":
             modifier = modifier + 1
-        moons = [max(roll_dice(1,-4+modifier), 0)]
-        moons.append(max(roll_dice(1,-2+modifier), 0) if moons[0] == 0 else 0)
-        return moons
-
-    def calculate_moon_size(self, moons: List[int], size: str) -> List[str]:
-        """Return a list containing the sizes of a planets major moons"""
-        major_moons = []
-        if moons[0] == 0:
-            return major_moons
-        else:
-            for _ in range(moons[0]):
-                major_moons.append(size_list[max(size_list.index(size)+look_up(st.moon_size_tree, roll_dice(3)), 0)])
-        return major_moons
+        major_moons = max(roll_dice(1,-4+modifier), 0)
+        moonlets = max(roll_dice(1,-2+modifier), 0) if major_moons == 0 else 0
+        return [moonlets, major_moons]
 
 
 class StarSystem(object):

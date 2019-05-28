@@ -82,13 +82,13 @@ world_type_tree[18 : 18 + 1] = ["Large (Chthonian)", "Large (Ice)", "Large (Gard
 
 # Atmosphere
 atmospheric_pressure_categories_tree = IntervalTree()
-atmospheric_pressure_categories_tree[0:0.01] = "Trace"
+atmospheric_pressure_categories_tree[0 : 0.01 + 0.01] = "Trace"
 atmospheric_pressure_categories_tree[0.01 : 0.50 + 0.01] = "Very Thin"
 atmospheric_pressure_categories_tree[0.51 : 0.80 + 0.01] = "Thin"
 atmospheric_pressure_categories_tree[0.81 : 1.20 + 0.01] = "Standard"
 atmospheric_pressure_categories_tree[1.21 : 1.50 + 0.01] = "Dense"
 atmospheric_pressure_categories_tree[1.51 : 10 + 0.01] = "Very Dense"
-atmospheric_pressure_categories_tree[10.01:100] = "Superdense"
+atmospheric_pressure_categories_tree[10.01 : 100 + 0.01] = "Superdense"
 
 marginal_atmospheres_trees = IntervalTree()
 marginal_atmospheres_trees[3 : 4 + 1] = "Chlorine or Flourine"
