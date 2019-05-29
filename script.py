@@ -19,9 +19,6 @@ random.seed(a=args.seed)
 
 if __name__ == "__main__":
     test_system = generator.StarSystem()
-    test = generator.Star(None, None)
-    print(test_system.stars)
-    test_system.print_summary()
     for orbits in test_system.orbits:
         offset = 0
         for orbit in orbits:
@@ -31,6 +28,6 @@ if __name__ == "__main__":
             elif type(orbit) == generator.Star:
                 print(orbit)
             elif isinstance(orbit[1], generator.Planet):
-                print([orbit[0]+offset, orbit[1], orbit[1].moons, orbit[1].ring_system, orbit[1].major_moons])
+                print([orbit[1].absolute_orbital_radius, orbit[1].type, orbit[1].temperature, orbit[1].moons, orbit[1].ring_system, orbit[1].major_moons])
             else:
                 print([orbit[0]+offset, orbit[1]])
