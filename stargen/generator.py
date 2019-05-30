@@ -4,6 +4,7 @@ according to the GURPS Space 4th edition system.
 
 Todo:
     * Finish generation of planetary details
+    * Refactor World Type Generation for Moons
     * Find a cleaner way to print the star, planet, and system information
     * Still calculating separate orbits for close binary pairs rather than as center of mass
     * Complete generation of distant companion subcompanions and make sure trinary star
@@ -71,10 +72,17 @@ class Star(object):
     """
     
     def __init__(self, mass: Optional[float], age: Optional[float], guarantee_garden_world: bool=False) -> None:
-        self.mass = mass if mass else self.calculate_stellar_mass(guarantee_garden_world)
-        self.age = age if age else self.calculate_stellar_age(guarantee_garden_world)
         self.guarantee_garden_world = guarantee_garden_world
+        if mass is not None:
+            self.mass = mass
+        else:
+            self.mass =  self.calculate_stellar_mass()
 
+        if age is not None:
+            self.age = age
+        else:
+            self.age = self.calculate_stellar_age()
+        
         self.type = self.calculate_stellar_type(self.mass)
         self.sequence = self.calculate_stellar_sequence(self.mass, self.age)
         self.temperature = self.calculate_stellar_temperature(self.mass, self.age, self.sequence)
@@ -87,16 +95,19 @@ class Star(object):
 
         self.readjust_stellar_characteristics(self.sequence, self.temperature)
 
-    def calculate_stellar_mass(self, guarantee_garden_world: bool) -> float:
+    def calculate_stellar_mass(self) -> float:
         """Return a randomly generated star mass"""
-        if guarantee_garden_world:
+        if self.guarantee_garden_world:
             return look_up(look_up(st.stellar_mass_tree_first_roll_garden_world, roll_dice(1)), roll_dice(3))
         else:
             return look_up(look_up(st.stellar_mass_tree_first_roll, roll_dice(3)), roll_dice(3))
 
-    def calculate_stellar_age(self, guarantee_garden_world: bool) -> float:
-        """Return a randomly generated system age""" 
-        base_age, step_a, step_b = look_up(st.stellar_age_tree, roll_dice(2,2) if guarantee_garden_world else roll_dice(3))
+    def calculate_stellar_age(self) -> float:
+        """Return a randomly generated system age"""
+        if self.guarantee_garden_world:
+            base_age, step_a, step_b = look_up(st.stellar_age_tree, roll_dice(2,2))
+        else:
+            base_age, step_a, step_b = look_up(st.stellar_age_tree, roll_dice(3))
         return (base_age + step_a*roll_dice(1,-1) + step_b*roll_dice(1,-1))
 
     def calculate_stellar_type(self, mass: float) -> Optional[str]:
@@ -167,19 +178,6 @@ class Star(object):
         if sequence == "III":
             self.type = look_up(st.stellar_evolution_tree_reverse, temperature)
 
-    def print_summary(self) -> None:
-        """Prints the attributes of the star to console in a human readable format"""
-        print(f"Spectral type {self.type} {self.sequence}")
-        print(f"mass {self.mass} solar masses")
-        print(f"age {self.age} billion years")
-        print(f"effective temperature {self.temperature} kelvins")
-        print(f"luminosity {self.luminosity} solar luminosities")
-        print(f"radius {self.radius} AU")
-        print("")
-        print(f"inner limit radius {self.inner_limit_radius} AU")
-        print(f"snow line radius {self.snow_line_radius} AU")
-        print(f"outer limit radius {self.outer_limit_radius} AU")
-
 class CompanionStar(Star):
     """
     A Star-based object for non-primary stars in multistar systems
@@ -214,14 +212,6 @@ class CompanionStar(Star):
     def calculate_eccentricity(self, separation: str) -> float:
         """Return the eccentricity for a companion star orbit"""
         return look_up(st.stellar_orbital_eccentricity_tree, roll_dice(3, -6 if separation == "Very Close" else -4 if separation == "Close" else -2 if separation == "Moderate" else 0))
-
-    def print_summary(self) -> None:
-        """Print the attributes of the companion star in a human readable format"""
-        print(f"Companion Star {self.designation}")
-        print(f"semi-major axis {self.semi_major_axis} AU")
-        print(f"eccentricity {self.eccentricity}")
-        print("")
-        Star.print_summary(self)
 
 class Planet(object):
     """
@@ -571,14 +561,3 @@ class StarSystem(object):
                 else:
                     orbit[i].append(orbit_contents)
         return orbits
-
-    def print_summary(self) -> None:
-        """Prints the attributes of all system stars in a human readable format"""
-        print("")
-        print("Primary Star")
-        for i in self.stars:
-            i.print_summary()
-            print("")
-        print(f"forbidden zone(s) {self.forbidden_zone}")
-        print(f"gas giant arrangement(s) {self.gas_giants}")
-        print(f"orbits {self.orbits}")
