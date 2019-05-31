@@ -71,112 +71,128 @@ class Star(object):
         snow_line_radius(float): radius for planetary formation in astronomical units
     """
     
-    def __init__(self, mass: Optional[float], age: Optional[float], guarantee_garden_world: bool=False) -> None:
+    def __init__(self, mass: Optional[float]=None, age: Optional[float]=None, guarantee_garden_world: bool=False) -> None:
         self.guarantee_garden_world = guarantee_garden_world
-        if mass is not None:
-            self.mass = mass
-        else:
-            self.mass =  self.calculate_stellar_mass()
 
-        if age is not None:
-            self.age = age
-        else:
-            self.age = self.calculate_stellar_age()
-        
-        self.type = self.calculate_stellar_type(self.mass)
+        if mass is None:
+            mass = self.generate_stellar_mass(self.guarantee_garden_world)
+        self.mass = mass
+
+        if age is None:
+            age = self.generate_stellar_age(self.guarantee_garden_world)
+        self.age = age
+
         self.sequence = self.calculate_stellar_sequence(self.mass, self.age)
-        self.temperature = self.calculate_stellar_temperature(self.mass, self.age, self.sequence)
-        self.luminosity = self.calculate_stellar_luminosity(self.mass, self.age, self.sequence)
+        if self.sequence == "D":
+            self.mass = self.white_dwarf_death()
+
+        self.temperature = self.calculate_stellar_temperature(self.mass, self.sequence, self.age)
+        self.luminosity = self.calculate_stellar_luminosity(self.mass, self.sequence, self.age)
+        self.type = self.calculate_stellar_type(self.sequence, self.mass, self.temperature)
         self.radius = self.calculate_stellar_radius(self.temperature, self.luminosity)
 
         self.inner_limit_radius = self.calculate_inner_limit_radius(self.mass, self.luminosity)
         self.outer_limit_radius = self.calculate_outer_limit_radius(self.mass)
-        self.snow_line_radius = self.calculate_snow_line_radius(look_up(st.stellar_evolution_tree, self.mass)[2])
+        self.snow_line_radius = self.calculate_snow_line_radius(self.mass)
 
-        self.readjust_stellar_characteristics(self.sequence, self.temperature)
-
-    def calculate_stellar_mass(self) -> float:
+    def generate_stellar_mass(self, guarantee_garden_world: bool=False) -> float:
         """Return a randomly generated star mass"""
-        if self.guarantee_garden_world:
-            return look_up(look_up(st.stellar_mass_tree_first_roll_garden_world, roll_dice(1)), roll_dice(3))
+        if guarantee_garden_world:
+            stellar_mass = look_up(look_up(st.stellar_mass_tree_first_roll_garden_world, roll_dice(1)), roll_dice(3))
         else:
-            return look_up(look_up(st.stellar_mass_tree_first_roll, roll_dice(3)), roll_dice(3))
+            stellar_mass = look_up(look_up(st.stellar_mass_tree_first_roll, roll_dice(3)), roll_dice(3))
+        return stellar_mass
 
-    def calculate_stellar_age(self) -> float:
+    def generate_stellar_age(self, guarantee_garden_world: bool=False) -> float:
         """Return a randomly generated system age"""
-        if self.guarantee_garden_world:
+        if guarantee_garden_world:
             base_age, step_a, step_b = look_up(st.stellar_age_tree, roll_dice(2,2))
         else:
             base_age, step_a, step_b = look_up(st.stellar_age_tree, roll_dice(3))
-        return (base_age + step_a*roll_dice(1,-1) + step_b*roll_dice(1,-1))
-
-    def calculate_stellar_type(self, mass: float) -> Optional[str]:
-        """Return a spectral type based on mass of the star"""
-        return look_up(st.stellar_evolution_tree, mass)[0]
+        stellar_age = base_age + step_a*roll_dice(1,-1) + step_b*roll_dice(1,-1)
+        return stellar_age
 
     def calculate_stellar_sequence(self, mass: float, age: float) -> str:
         """Return a luminosity class based on mass and age of star"""
         *_,m_span,s_span,g_span = look_up(st.stellar_evolution_tree, mass)
         if s_span is None:
-            return "V"
+            stellar_sequence = "V"
         elif age > m_span+s_span+g_span:
-            return "D"
+            stellar_sequence = "D"
         elif age > m_span+s_span:
-            return "III"
+            stellar_sequence = "III"
         elif age > m_span:
-            return "IV"
+            stellar_sequence = "IV"
         else:
-            return "V"
-            
-    def calculate_stellar_temperature(self, mass: float, age: float, sequence: str) -> Optional[float]:
+            stellar_sequence = "V"
+        return stellar_sequence
+
+    def white_dwarf_death(self) -> float:
+        """Modifies the mass of a white dwarf"""
+        stellar_mass = 0.9+0.05*roll_dice(2,-2)
+        return stellar_mass
+
+    def calculate_stellar_temperature(self, mass: float, sequence: str, age: float) -> Optional[float]:
         """Return an effective temperature based on mass, age, and sequence"""
         _,temp,_,_,m_span,s_span,_ = look_up(st.stellar_evolution_tree, mass)
         if sequence == "V":
-            return temp
+            stellar_temperature = temp
         elif sequence == "IV":
-            return temp-(((age-m_span)/s_span)*(temp-4800))
+            stellar_temperature = temp-(((age-m_span)/s_span)*(temp-4800))
         elif sequence == "III":
-            return 3000+200*roll_dice(2,-2)
+            stellar_temperature = 3000+200*roll_dice(2,-2)
         else:
-            return None
+            stellar_temperature = None
+        return stellar_temperature
     
-    def calculate_stellar_luminosity(self, mass: float, age: float, sequence: str) -> float:
+    def calculate_stellar_luminosity(self, mass: float, sequence: str, age: float) -> float:
         """Return luminosity based on mass, age, and sequence"""
         _,_,l_min,l_max,m_span,*_ = look_up(st.stellar_evolution_tree, mass)
         if sequence == "V":
-            return l_min+((age/m_span)*(l_max-l_min)) if l_max else l_min
+            stellar_luminosity = l_min+((age/m_span)*(l_max-l_min)) if l_max else l_min
         elif sequence == "IV":
-            return l_max
+            stellar_luminosity = l_max
         elif sequence == "III":
-            return l_max*25
+            stellar_luminosity = l_max*25
         else:
-            return 0.001
+            stellar_luminosity = 0.001
+        return stellar_luminosity
+
+    def calculate_stellar_type(self, sequence: str, mass: float, temperature: float) -> Optional[str]:
+        """Return a spectral type based on mass of the star"""
+        if sequence == "V":
+            stellar_type,*_ = look_up(st.stellar_evolution_tree, mass)
+        elif sequence == "IV":
+            stellar_type = look_up(st.stellar_evolution_tree_reverse, temperature)
+        elif sequence == "III":
+            stellar_type = look_up(st.stellar_evolution_tree_reverse, temperature)
+        else:
+            stellar_type = None
+        return stellar_type
 
     def calculate_stellar_radius(self, temperature: Optional[float], luminosity: float) -> Optional[float]:
         """Return radius based on temperature and luminosity"""
-        return (155000*math.sqrt(luminosity))/(math.pow(temperature,2)) if temperature else None
+        if temperature is None:
+            stellar_radius = None
+        else:
+            stellar_radius = (155000*math.sqrt(luminosity))/(math.pow(temperature,2))
+        return stellar_radius
 
     def calculate_inner_limit_radius(self, mass: float, luminosity: float) -> float:
         """Return a list of inner limit radii corresponding to each star"""
-        return max(0.1*mass, 0.01*math.sqrt(luminosity))
+        inner_limit_radius = max(0.1*mass, 0.01*math.sqrt(luminosity))
+        return inner_limit_radius
 
     def calculate_outer_limit_radius(self, mass: float) -> float:
         """Return a list of outer limit radii corresponding to each star"""
-        return 40.0*mass
+        outer_limit_radius = 40.0*mass
+        return outer_limit_radius
 
-    def calculate_snow_line_radius(self, l_min: float) -> float:
+    def calculate_snow_line_radius(self, mass: float) -> float:
         """Return a list of snow line radii corresponding to each star"""
-        return 4.85*math.sqrt(l_min)
-
-    def readjust_stellar_characteristics(self, sequence: str, temperature: Optional[float]) -> None:
-        """Modifies the type and mass of a non-main sequence star"""
-        if sequence == "D":
-            self.type = None
-            self.mass = 0.9+roll_dice(2,-2)*0.05
-        if sequence == "IV":
-            self.type = look_up(st.stellar_evolution_tree_reverse, temperature)
-        if sequence == "III":
-            self.type = look_up(st.stellar_evolution_tree_reverse, temperature)
+        _,_,l_min,*_= look_up(st.stellar_evolution_tree, mass)
+        snow_line_radius = 4.85*math.sqrt(l_min)
+        return snow_line_radius
 
 class CompanionStar(Star):
     """
@@ -194,24 +210,40 @@ class CompanionStar(Star):
         eccentricity (float): eccentricity of the companion stars orbit
     """
 
-    def __init__(self, designation: int, mass: float, age: float) -> None:
+    def __init__(self, designation: int, mass: float, age: float, guarantee_garden_world: bool) -> None:
         Star.__init__(self, mass, age)
         self.designation = designation
-        self.orbital_separation = self.calculate_orbital_separation(self.designation, self.guarantee_garden_world)
-        self.semi_major_axis = self.calculate_semi_major_axis(self.orbital_separation[1])
-        self.eccentricity = self.calculate_eccentricity(self.orbital_separation[0])
+        self.orbital_separation = self.generate_orbital_separation(self.guarantee_garden_world, self.designation)
+        self.semi_major_axis = self.generate_semi_major_axis(self.orbital_separation[1])
+        self.eccentricity = self.generate_eccentricity(self.orbital_separation[0])
 
-    def calculate_orbital_separation(self, designation: int, guarantee_garden_world: bool) -> List[Union[str, float]]:
+    def generate_orbital_separation(self, guarantee_garden_world: bool, designation: int) -> List[Union[str, float]]:
         """Return a list containing the companion star 'Separation' and radius multiplier"""
-        return look_up(st.orbital_separation_tree, roll_dice(3,6 if designation == 2 else 0 + 4 if guarantee_garden_world else 0))
+        modifier = 0
+        if guarantee_garden_world:
+            modifier += 4
+        if designation == 2:
+            modifier += 6
+        orbital_separation = look_up(st.orbital_separation_tree, roll_dice(3, modifier))
+        return orbital_separation
 
-    def calculate_semi_major_axis(self, radius_multiplier: float) -> float:
+    def generate_semi_major_axis(self, radius_multiplier: float) -> float:
         """Return the average orbital radius (or semi-major axis) of a companion star in AU"""
-        return roll_dice(2)*radius_multiplier
+        semi_major_axis = roll_dice(2)*radius_multiplier
+        return semi_major_axis
 
-    def calculate_eccentricity(self, separation: str) -> float:
+    def generate_eccentricity(self, separation: str) -> float:
         """Return the eccentricity for a companion star orbit"""
-        return look_up(st.stellar_orbital_eccentricity_tree, roll_dice(3, -6 if separation == "Very Close" else -4 if separation == "Close" else -2 if separation == "Moderate" else 0))
+        if separation == "Very Close":
+            modifier = -6
+        elif separation == "Close":
+            modifier = -4
+        elif separation == "Moderate":
+            modifier = -2
+        else:
+            modifier = 0
+        eccentricity = look_up(st.stellar_orbital_eccentricity_tree, roll_dice(3, modifier))
+        return eccentricity
 
 class Planet(object):
     """
@@ -424,12 +456,12 @@ class StarSystem(object):
             if designation > 0:
                 companion_star_mass_roll = roll_dice(1, -1)
                 if companion_star_mass_roll == 0:
-                    stars.append(CompanionStar(designation, stars[0].mass, stars[0].age))
+                    stars.append(CompanionStar(designation, stars[0].mass, stars[0].age, guarantee_garden_world))
                 else:
                     mass = stars[0].mass-0.05*roll_dice(companion_star_mass_roll)
-                    stars.append(CompanionStar(designation, (mass if mass >= 0.10 else 0.10), stars[0].age))
+                    stars.append(CompanionStar(designation, (mass if mass >= 0.10 else 0.10), stars[0].age, guarantee_garden_world))
             else:
-                stars.append(Star(None, None, guarantee_garden_world))
+                stars.append(Star(guarantee_garden_world=guarantee_garden_world))
         return stars
 
     def calculate_forbidden_zone(self, stars: List[Star]) -> List[float]:

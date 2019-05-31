@@ -24,10 +24,10 @@ if __name__ == "__main__":
         for orbit in orbits:
             if type(orbit) == generator.CompanionStar:
                 offset = orbit.semi_major_axis
-                print([offset, orbit])
+                print([offset, orbit.type + " " +orbit.sequence])
             elif type(orbit) == generator.Star:
-                print(orbit)
+                print([0.0, orbit.type + " " + orbit.sequence])
             elif isinstance(orbit[1], generator.Planet):
-                print([orbit[1].absolute_orbital_radius, orbit[1].type, orbit[1].temperature, orbit[1].moons, orbit[1].ring_system, orbit[1].major_moons])
+                print([orbit[1].absolute_orbital_radius, orbit[1].type, orbit[1].moons, orbit[1].ring_system, orbit[1].major_moons])
             else:
                 print([orbit[0]+offset, orbit[1]])
