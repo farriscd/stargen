@@ -4,8 +4,8 @@ according to the GURPS Space 4th edition system.
 
 Todo:
     * Finish generation of planetary details
-    * Refactor World Type Generation for Moons
-    * Find a cleaner way to print the star, planet, and system information
+    * Refactor World Type Generation for everything south of Stars/CompanionStars
+    * Consider use of private variables
     * Still calculating separate orbits for close binary pairs rather than as center of mass
     * Complete generation of distant companion subcompanions and make sure trinary star
     systems adhere to the suggested guidelines
@@ -23,6 +23,7 @@ import random
 from intervaltree import Interval, IntervalTree
 from typing import Any, Union, Optional, List
 
+from . import basictrees as bt
 from . import startrees as st
 from . import worldtrees as wt
 
@@ -75,124 +76,128 @@ class Star(object):
         self.guarantee_garden_world = guarantee_garden_world
 
         if mass is None:
-            mass = self.generate_stellar_mass(self.guarantee_garden_world)
+            mass = self.generate_stellar_mass()
         self.mass = mass
 
         if age is None:
-            age = self.generate_stellar_age(self.guarantee_garden_world)
+            age = self.generate_stellar_age()
         self.age = age
 
-        self.sequence = self.calculate_stellar_sequence(self.mass, self.age)
+        self.sequence = self.calculate_stellar_sequence()
         if self.sequence == "D":
-            self.mass = self.white_dwarf_death()
+            self.white_dwarf_death()
 
-        self.temperature = self.calculate_stellar_temperature(self.mass, self.sequence, self.age)
-        self.luminosity = self.calculate_stellar_luminosity(self.mass, self.sequence, self.age)
-        self.type = self.calculate_stellar_type(self.sequence, self.mass, self.temperature)
-        self.radius = self.calculate_stellar_radius(self.temperature, self.luminosity)
+        self.temperature = self.calculate_stellar_temperature()
+        self.luminosity = self.calculate_stellar_luminosity()
+        self.type = self.calculate_stellar_type()
+        self.radius = self.calculate_stellar_radius()
 
-        self.inner_limit_radius = self.calculate_inner_limit_radius(self.mass, self.luminosity)
-        self.outer_limit_radius = self.calculate_outer_limit_radius(self.mass)
-        self.snow_line_radius = self.calculate_snow_line_radius(self.mass)
+        self.inner_limit_radius = self.calculate_inner_limit_radius()
+        self.outer_limit_radius = self.calculate_outer_limit_radius()
+        self.snow_line_radius = self.calculate_snow_line_radius()
+        
+        self.gas_giant_arrangement = []
 
-    def generate_stellar_mass(self, guarantee_garden_world: bool=False) -> float:
+    def generate_stellar_mass(self) -> float:
         """Return a randomly generated star mass"""
-        if guarantee_garden_world:
-            stellar_mass = look_up(look_up(st.stellar_mass_tree_first_roll_garden_world, roll_dice(1)), roll_dice(3))
+        if self.guarantee_garden_world:
+            table = look_up(st.stellar_mass_tree_first_roll_garden_world, roll_dice(1))
+            stellar_mass = look_up(table, roll_dice(3))
         else:
-            stellar_mass = look_up(look_up(st.stellar_mass_tree_first_roll, roll_dice(3)), roll_dice(3))
+            table = look_up(st.stellar_mass_tree_first_roll, roll_dice(3))
+            stellar_mass = look_up(table, roll_dice(3))
         return stellar_mass
 
-    def generate_stellar_age(self, guarantee_garden_world: bool=False) -> float:
+    def generate_stellar_age(self) -> float:
         """Return a randomly generated system age"""
-        if guarantee_garden_world:
+        if self.guarantee_garden_world:
             base_age, step_a, step_b = look_up(st.stellar_age_tree, roll_dice(2,2))
         else:
             base_age, step_a, step_b = look_up(st.stellar_age_tree, roll_dice(3))
         stellar_age = base_age + step_a*roll_dice(1,-1) + step_b*roll_dice(1,-1)
         return stellar_age
 
-    def calculate_stellar_sequence(self, mass: float, age: float) -> str:
+    def calculate_stellar_sequence(self) -> str:
         """Return a luminosity class based on mass and age of star"""
-        *_,m_span,s_span,g_span = look_up(st.stellar_evolution_tree, mass)
+        *_,m_span,s_span,g_span = look_up(st.stellar_evolution_tree, self.mass)
         if s_span is None:
             stellar_sequence = "V"
-        elif age > m_span+s_span+g_span:
+        elif self.age > m_span+s_span+g_span:
             stellar_sequence = "D"
-        elif age > m_span+s_span:
+        elif self.age > m_span+s_span:
             stellar_sequence = "III"
-        elif age > m_span:
+        elif self.age > m_span:
             stellar_sequence = "IV"
         else:
             stellar_sequence = "V"
         return stellar_sequence
 
-    def white_dwarf_death(self) -> float:
+    def white_dwarf_death(self) -> None:
         """Modifies the mass of a white dwarf"""
-        stellar_mass = 0.9+0.05*roll_dice(2,-2)
-        return stellar_mass
+        self.stellar_mass = 0.9+0.05*roll_dice(2,-2)
 
-    def calculate_stellar_temperature(self, mass: float, sequence: str, age: float) -> Optional[float]:
+    def calculate_stellar_temperature(self) -> Optional[float]:
         """Return an effective temperature based on mass, age, and sequence"""
-        _,temp,_,_,m_span,s_span,_ = look_up(st.stellar_evolution_tree, mass)
-        if sequence == "V":
+        _,temp,_,_,m_span,s_span,_ = look_up(st.stellar_evolution_tree, self.mass)
+        if self.sequence == "V":
             stellar_temperature = temp
-        elif sequence == "IV":
-            stellar_temperature = temp-(((age-m_span)/s_span)*(temp-4800))
-        elif sequence == "III":
+        elif self.sequence == "IV":
+            stellar_temperature = temp-(((self.age-m_span)/s_span)*(temp-4800))
+        elif self.sequence == "III":
             stellar_temperature = 3000+200*roll_dice(2,-2)
         else:
             stellar_temperature = None
         return stellar_temperature
     
-    def calculate_stellar_luminosity(self, mass: float, sequence: str, age: float) -> float:
+    def calculate_stellar_luminosity(self) -> float:
         """Return luminosity based on mass, age, and sequence"""
-        _,_,l_min,l_max,m_span,*_ = look_up(st.stellar_evolution_tree, mass)
-        if sequence == "V":
-            stellar_luminosity = l_min+((age/m_span)*(l_max-l_min)) if l_max else l_min
-        elif sequence == "IV":
+        _,_,l_min,l_max,m_span,*_ = look_up(st.stellar_evolution_tree, self.mass)
+        if self.sequence == "V":
+            stellar_luminosity = l_min if l_max is None else l_min+((self.age/m_span)*(l_max-l_min))
+        elif self.sequence == "IV":
             stellar_luminosity = l_max
-        elif sequence == "III":
+        elif self.sequence == "III":
             stellar_luminosity = l_max*25
         else:
             stellar_luminosity = 0.001
         return stellar_luminosity
 
-    def calculate_stellar_type(self, sequence: str, mass: float, temperature: float) -> Optional[str]:
+    def calculate_stellar_type(self) -> Optional[str]:
         """Return a spectral type based on mass of the star"""
-        if sequence == "V":
-            stellar_type,*_ = look_up(st.stellar_evolution_tree, mass)
-        elif sequence == "IV":
-            stellar_type = look_up(st.stellar_evolution_tree_reverse, temperature)
-        elif sequence == "III":
-            stellar_type = look_up(st.stellar_evolution_tree_reverse, temperature)
+        if self.sequence == "V":
+            stellar_type,*_ = look_up(st.stellar_evolution_tree, self.mass)
+        elif self.sequence == "IV":
+            stellar_type = look_up(st.stellar_evolution_tree_reverse, self.temperature)
+        elif self.sequence == "III":
+            stellar_type = look_up(st.stellar_evolution_tree_reverse, self.temperature)
         else:
             stellar_type = None
         return stellar_type
 
-    def calculate_stellar_radius(self, temperature: Optional[float], luminosity: float) -> Optional[float]:
+    def calculate_stellar_radius(self) -> Optional[float]:
         """Return radius based on temperature and luminosity"""
-        if temperature is None:
+        if self.temperature is None:
             stellar_radius = None
         else:
-            stellar_radius = (155000*math.sqrt(luminosity))/(math.pow(temperature,2))
+            stellar_radius = (155000*math.sqrt(self.luminosity))/(math.pow(self.temperature,2))
         return stellar_radius
 
-    def calculate_inner_limit_radius(self, mass: float, luminosity: float) -> float:
+    def calculate_inner_limit_radius(self) -> float:
         """Return a list of inner limit radii corresponding to each star"""
-        inner_limit_radius = max(0.1*mass, 0.01*math.sqrt(luminosity))
+        inner_limit_radius = max(0.1*self.mass, 0.01*math.sqrt(self.luminosity))
         return inner_limit_radius
 
-    def calculate_outer_limit_radius(self, mass: float) -> float:
+    def calculate_outer_limit_radius(self) -> float:
         """Return a list of outer limit radii corresponding to each star"""
-        outer_limit_radius = 40.0*mass
+        outer_limit_radius = 40.0*self.mass
         return outer_limit_radius
 
-    def calculate_snow_line_radius(self, mass: float) -> float:
+    def calculate_snow_line_radius(self) -> float:
         """Return a list of snow line radii corresponding to each star"""
-        _,_,l_min,*_= look_up(st.stellar_evolution_tree, mass)
+        _,_,l_min,*_= look_up(st.stellar_evolution_tree, self.mass)
         snow_line_radius = 4.85*math.sqrt(l_min)
         return snow_line_radius
+
 
 class CompanionStar(Star):
     """
@@ -210,207 +215,422 @@ class CompanionStar(Star):
         eccentricity (float): eccentricity of the companion stars orbit
     """
 
-    def __init__(self, designation: int, mass: float, age: float, guarantee_garden_world: bool) -> None:
-        Star.__init__(self, mass, age)
+    def __init__(self, designation: int, primary_star: Star) -> None:
         self.designation = designation
-        self.orbital_separation = self.generate_orbital_separation(self.guarantee_garden_world, self.designation)
-        self.semi_major_axis = self.generate_semi_major_axis(self.orbital_separation[1])
-        self.eccentricity = self.generate_eccentricity(self.orbital_separation[0])
+        self.primary_star = primary_star
+        self.guarantee_garden_world = primary_star.guarantee_garden_world
 
-    def generate_orbital_separation(self, guarantee_garden_world: bool, designation: int) -> List[Union[str, float]]:
+        self.mass = self.generate_companion_mass()
+        self.age = self.primary_star.age
+        Star.__init__(self, self.mass, self.age, self.guarantee_garden_world)
+
+        self.separation, radius_multiplier = self.generate_orbital_separation()
+        self.eccentricity = self.generate_eccentricity()
+        self.semi_major_axis = self.generate_semi_major_axis(radius_multiplier)
+        self.orbital_period = self.calculate_stellar_orbital_period()
+
+    def generate_companion_mass(self) -> float:
+        """Returns an appropriate mass for a companion of the supplied Star"""
+        companion_star_mass_roll = roll_dice(1, -1)
+        if companion_star_mass_roll == 0:
+            companion_mass = self.primary_star.mass
+        else:
+            companion_mass = max(self.primary_star.mass-0.05*roll_dice(companion_star_mass_roll), 0.10)
+        return companion_mass
+
+    def generate_orbital_separation(self) -> List[Union[str, float]]:
         """Return a list containing the companion star 'Separation' and radius multiplier"""
         modifier = 0
-        if guarantee_garden_world:
+        if self.guarantee_garden_world:
             modifier += 4
-        if designation == 2:
+        if self.designation == 2:
             modifier += 6
-        orbital_separation = look_up(st.orbital_separation_tree, roll_dice(3, modifier))
-        return orbital_separation
+        separation, radius_multiplier = look_up(st.orbital_separation_tree, roll_dice(3, modifier))
+        return separation, radius_multiplier
 
-    def generate_semi_major_axis(self, radius_multiplier: float) -> float:
-        """Return the average orbital radius (or semi-major axis) of a companion star in AU"""
-        semi_major_axis = roll_dice(2)*radius_multiplier
-        return semi_major_axis
-
-    def generate_eccentricity(self, separation: str) -> float:
+    def generate_eccentricity(self) -> float:
         """Return the eccentricity for a companion star orbit"""
-        if separation == "Very Close":
+        if self.separation == "Very Close":
             modifier = -6
-        elif separation == "Close":
+        elif self.separation == "Close":
             modifier = -4
-        elif separation == "Moderate":
+        elif self.separation == "Moderate":
             modifier = -2
         else:
             modifier = 0
         eccentricity = look_up(st.stellar_orbital_eccentricity_tree, roll_dice(3, modifier))
         return eccentricity
 
-class Planet(object):
+    def generate_semi_major_axis(self, radius_multiplier: float) -> float:
+        """Return the average orbital radius (or semi-major axis) of a companion star in AU"""
+        semi_major_axis = roll_dice(2)*radius_multiplier
+        return semi_major_axis
+
+    def calculate_stellar_orbital_period(self) -> float:
+        """Return the orbital period in years"""
+        orbital_period = math.sqrt((self.semi_major_axis**3)/(self.mass+self.primary_star.mass))
+        return orbital_period
+
+
+class World(object):
     """
-    The Planet object contains randomly generated data based on a given Star
-
-    Args:
-        primary_star: The closest Star object around which the planet orbits
-        orbit: The average distance between its primary star
-        size: The size of the planet
-
-    Attributes:
-        relative_orbital_radius (float): The average distance between its primary star
-        absolute_orbital_radius (float): The average distance between the system center
-        size (str): The size of the planet
-        temperature (float): The effective temperature of the planet in Kelvins
-        moons (List[int]): The list of counts major moons/moonlets in orbit
-        major_moons (List[str or NoneType]): The list of sizes of major moons
-        ring_system (str or NoneType): The visibility of any ring system
-        type (str or NoneType): The world type
     """
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
+        self.primary_star = primary_star
+        self.semi_major_axis = orbit
 
-        self.relative_orbital_radius = orbit
-        self.absolute_orbital_radius = orbit + (primary_star.semi_major_axis if type(primary_star) == CompanionStar else 0)
         self.size = size
-        self.temperature = self.calculate_temperature(primary_star.luminosity, self.relative_orbital_radius)
-        self.moons = None
-        self.major_moons = None
-        self.ring_system = None
-        self.type = None
 
-    def calculate_moon_size(self, moons: List[int], size: str) -> List[str]:
-        """Return a list containing the sizes of a planets major moons"""
-        major_moons = []
-        if moons[1] == 0:
-            return major_moons
+        self.temperature = self.calculate_blackbody_temperature()
+        self.type = self.calculate_world_type()
+
+        self.density = None
+        self.diameter = None
+        self.surface_gravity = None
+
+        # Attributes for Terrestrial/MajorMoon
+        self.atmospheric_mass = None
+        self.atmospheric_composition = None
+        self.hydrographic_coverage = None
+        self.atmospheric_pressure = None
+
+    def calculate_blackbody_temperature(self) -> float:
+        """Return the effective temperature of the planet"""
+        blackbody_temperature = (278*(self.primary_star.luminosity**(1./4)))/math.sqrt(self.semi_major_axis)
+        return blackbody_temperature
+
+    def look_up_world_type(self) -> Union[List[str], str]:
+        """Return a string or list of strings of possible world types"""
+        if self.size == "Tiny":
+            world_type = look_up(wt.tiny_world_type_assignment_tree, self.temperature)
+        elif self.size == "Small":
+            world_type = look_up(wt.small_world_type_assignment_tree, self.temperature)
+        elif self.size == "Standard":
+            world_type = look_up(wt.standard_world_type_assignment_tree, self.temperature)
+        elif self.size == "Large":
+            world_type = look_up(wt.large_world_type_assignment_tree, self.temperature)
+        return world_type
+
+    def calculate_world_type(self) -> str:
+        """Return a string describing the world type"""
+        world_type = self.look_up_world_type()
+        if (self.size == "Tiny") and isinstance(world_type, list):
+            world_type = world_type[0]
+        if (self.size == "Standard" or self.size == "Large") and isinstance(world_type, list):
+            if (world_type[0] == "Standard (Ice)" or world_type[0] == "Large (Ice)") and self.primary_star.mass <= 0.65:
+                world_type = world_type[1]
+            elif (world_type[0] == "Standard (Ocean)" and roll_dice(3, max(math.floor(self.primary_star.age/.5), 10)) >= 18) or (world_type[0] == "Large (Ocean)" and roll_dice(3, max(math.floor(self.primary_star.age/.5), 5)) >= 18):
+                world_type = world_type[1]
+            else:
+                world_type = world_type[0]
+        return world_type
+
+    def generate_atmospheric_mass(self) -> float:
+        """Return the atmospheric mass of a given world type"""
+        if self.type in wt.no_atmosphere_world_types:
+            atmospheric_mass = 0
         else:
-            for _ in range(moons[1]):
-                major_moons.append(size_list[max(size_list.index(size)+look_up(st.moon_size_tree, roll_dice(3)), 0)])
+            atmospheric_mass = roll_dice(3)/10.
+        return atmospheric_mass
+
+    def generate_atmospheric_composition(self) -> List[str]:
+        """Return a list of strings describing atmospheric composition"""
+        if self.type == "Small (Ice)":
+            if roll_dice(3) <= 15:
+                atmospheric_composition = ["Suffocating", "Mildly Toxic"]
+            else:
+                atmospheric_composition = ["Suffocating", "Highly Toxic"]
+        elif self.type in ["Standard (Ammonia)", "Standard (Greenhouse)", "Large (Ammonia)", "Large (Greenhouse)"]:
+            atmospheric_composition = ["Suffocating", "Lethaly Toxic", "Corrosive"]
+        elif self.type in ["Standard (Ice)", "Standard (Ocean)"]:
+            if roll_dice(3) <= 12:
+                atmospheric_composition = ["Suffocating"]
+            else:
+                atmospheric_composition = ["Suffocating", "Mildly Toxic"]
+        elif self.type in ["Standard (Garden)", "Large (Garden)"]:
+            if roll_dice(3) <= 11:
+                atmospheric_composition = ["Standard"]
+            else:
+                atmospheric_composition = [self.generate_marginal_atmosphere()]
+        elif self.type in ["Large (Ice)", "Large (Ocean)"]:
+            atmospheric_composition = ["Suffocating", "Highly Toxic"]
+        elif self.type in ["Small (Rock)", "Standard (Chthonian)", "Large (Chthonian)"]:
+            atmospheric_composition = ["Trace Atmosphere"]
+        else:
+            atmospheric_composition = ["Vacuum"]
+        return atmospheric_composition
+
+    def generate_marginal_atmosphere(self) -> List[str]:
+        """Return a list of marginal atmospheres"""
+        marginal_atmosphere = look_up(bt.marginal_atmospheres_tree, roll_dice(3))
+        return marginal_atmosphere
+
+    def generate_hydrographic_coverage(self) -> float:
+        """Return the percentage of hydrographic coverage of a planet"""
+        if self.type == "Small (Ice)":
+            hydrographic_coverage = roll_dice(1, 2)*.1
+        elif self.type in ["Standard (Ammonia)", "Large (Ammonia)"]:
+            hydrographic_coverage = min(roll_dice(2)*.1 , 1.0)
+        elif self.type in ["Standard (Ice)", "Large (Ice)"]:
+            hydrographic_coverage = max(roll_dice(2, -10)*.1, 0.0)
+        elif self.type in ["Standard (Ocean)", "Standard (Garden)"]:
+            hydrographic_coverage = roll_dice(1, 4)*.1
+        elif self.type in ["Large (Ocean)", "Large (Garden)"]:
+            hydrographic_coverage = min(roll_dice(1, 6)*.1, 1.0)
+        elif self.type in ["Standard (Greenhouse)", "Large (Greenhouse)"]:
+            hydrographic_coverage = max(roll_dice(2, -7)*.1, 0.0)
+        else:
+            hydrographic_coverage = 0.0
+        return hydrographic_coverage
+
+    def calculate_surface_temperature(self) -> float:
+        """Return the average surface temperature of a world"""
+        absorption_factor, greenhouse_factor = bt.temperature_factors(self.type, self.hydrographic_coverage)
+        blackbody_correction = absorption_factor * (1 + (self.atmospheric_mass*greenhouse_factor))
+        average_surface_temperature = self.temperature*blackbody_correction
+        return average_surface_temperature
+
+    def calculate_climate_type(self) -> str:
+        """Return the climate type of the world"""
+        climate_type = look_up(bt.world_climate_tree, self.temperature)
+        return climate_type
+
+    def generate_density(self) -> float:
+        """Return the density of a world in relation to the Earths density"""
+        if self.type in wt.icy_core_world_types:
+            density = look_up(bt.world_density_tree, roll_dice(3))[0]
+        elif self.type in wt.small_iron_core_world_types:
+            density = look_up(bt.world_density_tree, roll_dice(3))[1]
+        else:
+            density = look_up(bt.world_density_tree, roll_dice(3))[2]
+        return density
+    
+    def generate_diameter(self) -> float:
+        """Return the diameter of a world in relation to the Earths"""
+        if self.size == "Large":
+            minimum_factor = 0.065
+            maximum_factor = 0.091
+        elif self.size == "Standard":
+            minimum_factor = 0.030
+            maximum_factor = 0.065
+        elif self.size == "Small":
+            minimum_factor = 0.024
+            maximum_factor = 0.030
+        elif self.size == "Tiny":
+            minimum_factor = 0.004
+            maximum_factor = 0.024
+        minimum_diameter = minimum_factor*math.sqrt(self.temperature/self.density)
+        maximum_diameter = maximum_factor*math.sqrt(self.temperature/self.density)
+        variable_diameter = roll_dice(2, -2)*(maximum_diameter-minimum_diameter)*.1
+        diameter = minimum_diameter+variable_diameter
+        return diameter
+
+    def calculate_surface_gravity(self) -> float:
+        """Return the gravity of a world in relation to the Earths"""
+        surface_gravity = self.density * self.diameter
+        return surface_gravity
+
+    def calculate_mass(self) -> float:
+        """Return the mass of a world in relation to the Earths"""
+        mass = self.density * (self.diameter**3)
+        return mass
+
+    def calculate_atmospheric_pressure(self) -> float:
+        """Return the atmospheric pressure in relation to the Earths"""
+        if self.atmospheric_composition in ["Trace", "Vacuum"]:
+            atmospheric_pressure = 0
+        elif self.type == "Small (Ice)":
+            atmospheric_pressure = self.atmospheric_mass*10*self.surface_gravity
+        elif self.type == "Standard (Greenhouse)":
+            atmospheric_pressure = self.atmospheric_mass*100*self.surface_gravity
+        elif self.size == "Standard":
+            atmospheric_pressure = self.atmospheric_mass*1*self.surface_gravity
+        elif self.type == "Large (Greenhouse)":
+            atmospheric_pressure = self.atmospheric_mass*500*self.surface_gravity
+        elif self.size == "Large":
+            atmospheric_pressure = self.atmospheric_mass*5*self.surface_gravity
+        return atmospheric_pressure
+
+    def calculate_atmospheric_pressure_category(self) -> str:
+        """Return atmospheric pressure category"""
+        atmospheric_pressure_category = look_up(bt.atmospheric_pressure_categories_tree, self.atmospheric_pressure)
+        return atmospheric_pressure_category
+    
+
+class Planet(World):
+    """
+    """
+    def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
+        World.__init__(self, primary_star, orbit, size)
+
+        self.orbital_period = self.calculate_planetary_orbital_period()
+        self.orbital_eccentricity = self.generate_planetary_orbital_eccentricity()
+
+        self.moons = [0,0]
+        self.major_moons = []
+
+    def generate_major_moons(self) -> Any:
+        """Return a list containing MajorMoon objects"""
+        major_moons = []
+        for _ in range(self.moons[1]):
+            major_moons.append(MajorMoon(self))
         return major_moons
 
-    def calculate_temperature(self, luminosity: float, radius: float) -> float:
-        """Return the effective temperature of the planet"""
-        return (278*luminosity**(1./4))/math.sqrt(radius)
+    # this is slightly inaccurate as it doesn't account for planet mass
+    def calculate_planetary_orbital_period(self) -> float:
+        """Return the orbital period of a planet around its primary star in years"""
+        orbital_period = math.sqrt((self.semi_major_axis**3)/self.primary_star.mass)
+        return orbital_period
 
-    def calculate_world_type(self, blackbody_temperature: float, size_class: str) -> Union[List[str], str]:
-        if size_class == "Tiny":
-            return look_up(wt.tiny_world_type_assignment_tree, blackbody_temperature)
-        if size_class == "Small":
-            return look_up(wt.small_world_type_assignment_tree, blackbody_temperature)
-        if size_class == "Standard":
-            return look_up(wt.standard_world_type_assignment_tree, blackbody_temperature)
-        if size_class == "Large":
-            return look_up(wt.large_world_type_assignment_tree, blackbody_temperature)
+    def generate_planetary_orbital_eccentricity(self) -> float:
+        """Return the eccentricity of a planets orbit"""
+        modifier = 0
+        if isinstance(self, GasGiant):
+            if self.semi_major_axis < self.primary_star.snow_line_radius and self.primary_star.gas_giant_arrangement == "Eccentric Gas Giant":
+                modifier += 4
+            elif self.semi_major_axis <= 1.8*self.primary_star.inner_limit_radius and self.primary_star.gas_giant_arrangement == "Epistellar Gas Giant":
+                modifier -= 6
+            elif self.primary_star.gas_giant_arrangement == "Conventional Gas Giant":
+                modifier -= 6
+        orbital_eccentricity = look_up(wt.planetary_orbital_eccentricity_tree, roll_dice(3, modifier))
+        return orbital_eccentricity
+
+
+class MajorMoon(World):
+    """
+    """
+    def __init__(self, primary_planet: Planet) -> None:
+        self.primary_planet = primary_planet
+        if isinstance(primary_planet, GasGiant):
+            self.size = self.generate_moon_size(planet_size = "Large")
+        else:
+            self.size = self.generate_moon_size(self.primary_planet.size)
+
+        World.__init__(self, self.primary_planet.primary_star, self.primary_planet.semi_major_axis, self.size)
+
+        self.atmospheric_mass = self.generate_atmospheric_mass()
+        self.atmospheric_composition = self.generate_atmospheric_composition()
+        self.hydrographic_coverage = self.generate_hydrographic_coverage()
+        self.surface_temperature = self.calculate_surface_temperature()
+        self.climate_type = self.calculate_climate_type()
+
+        self.density = self.generate_density()
+        self.diameter = self.generate_diameter()
+        self.surface_gravity = self.calculate_surface_gravity()
+        self.mass =  self.calculate_mass()
+
+    def generate_moon_size(self, planet_size: str) -> str:
+        """Return a string describing the size of the moon"""
+        moon_size_relation = look_up(st.moon_size_tree, roll_dice(3))
+        enum_planet_size = size_list.index(planet_size)
+        moon_size = size_list[max(enum_planet_size+moon_size_relation, 0)]
+        return moon_size
+
+    def generate_satellite_orbital_radius(self) -> float:
+        if isinstance(self.primary_planet, GasGiant):
+            orbital_radius = 0
+        elif isinstance(self.primary_star, Terrestrial):
+            orbital_radius = 0
+        return orbital_radius
+
 
 class GasGiant(Planet):
     """
     """
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
         Planet.__init__(self, primary_star, orbit, size)
+        delattr(self, "atmospheric_mass")
+        delattr(self,"atmospheric_composition")
+        delattr(self,"hydrographic_coverage")
+        delattr(self,"atmospheric_pressure")
 
-        self.moons = self.generate_moons(self.relative_orbital_radius)
-        self.major_moons = self.calculate_moon_size(self.moons, "Large")
-        self.major_moons = self.calculate_moon_type(self.temperature, self.major_moons, primary_star)
-        self.ring_system = self.generate_rings(self.moons)
-        self.type = size + " Gas Giant"
+        self.type = size + " (Gas Giant)"
+        self.mass, self.density = self.generate_world_size()
+        self.diameter = self.calculate_diameter()
+        self.surface_gravity = self.calculate_surface_gravity()
 
-    def generate_moons(self, orbital_radius: float) -> List[int]:
+        tiny_sulfur_moon_possible = True if roll_dice(1) <= 3 else False
+        self.moons = self.generate_moons()
+        self.major_moons = self.generate_major_moons()
+        self.ring_system = self.calculate_ring_visibility()
+
+        if tiny_sulfur_moon_possible is True:
+            self.ice_or_sulfur()
+
+    def generate_moons(self) -> List[int]:
         """Return a list containing number of moons in each family of satellites"""
-        if orbital_radius < 0.1:
-            modifiers = [-10, -6, -6]
-        elif orbital_radius < 0.5:
-            modifiers = [-8, -5, -6]
-        elif orbital_radius < 0.75:
-            modifiers = [-6, -4, -5]
-        elif orbital_radius < 1.5:
-            modifiers = [-3, -1, -4]
-        elif orbital_radius < 3:
-            modifiers = [0, 0, -1]
-        else:
-            modifiers = [0, 0, 0]
+        modifiers = look_up(st.gas_giant_moon_size_modifiers, self.semi_major_axis)
         inner_moonlets = max(roll_dice(2, modifiers[0]), 0)
         major_moons = max(roll_dice(1, modifiers[1]), 0)
         irregular_moonlets = max(roll_dice(1, modifiers[2]), 0)
         return [inner_moonlets, major_moons, irregular_moonlets]
 
-    def generate_rings(self, moons: List[int]) -> str:
+    def calculate_ring_visibility(self) -> str:
         """Return the visibility of a gas giants rings based on moons"""
-        if moons[0] >= 10:
-            return "High Visibility"
-        elif moons[0] >= 6:
-            return "Moderate Visibility"
+        if self.moons[0] >= 10:
+            ring_visibility = "High Visibility"
+        elif self.moons[0] >= 6:
+            ring_visibility = "Moderate Visibility"
         else:
-            return "Low Visibility"
+            ring_visibility = "Low Visibility"
+        return ring_visibility
 
-    def calculate_gas_giant_type(self, blackbody_temperature: float, size_class: str, primary_star: Star, sulfur_check: bool) -> str:
-        world_type = self.calculate_world_type(blackbody_temperature, size_class)
-        if size_class == "Tiny" and type(world_type) == list:
-            if sulfur_check:
-                return world_type[1]
-            else:
-                return world_type[0]
-        if (size_class == "Standard" or size_class == "Large") and type(world_type) == list:
-            if (world_type[0] == "Standard (Ice)" or world_type[0] == "Large (Ice)") and primary_star.mass <= 0.65:
-                return world_type[1]
-            elif (world_type[0] == "Standard (Ocean)" and roll_dice(3, max(math.floor(primary_star.age/.5), 10)) >= 18) or (world_type[0] == "Large (Ocean)" and roll_dice(3, max(math.floor(primary_star.age/.5), 5)) >= 18):
-                return world_type[1]
-            else:
-                return world_type[0]
-        return world_type
+    def ice_or_sulfur(self) -> None:
+        """Check for existing sulfur moons, if possible will adjust first moon"""
+        for moon in self.major_moons:
+            if moon.type == "Tiny (Ice)":
+                moon.type = "Tiny (Sulfur)"
+                break
 
-    def calculate_moon_type(self, blackbody_temperature: float, major_moons: List[str], primary_star: Star) -> List[Optional[str]]:
-        sulfur_check = True if roll_dice(1) <= 3 else False
-        for idx, moon in enumerate(major_moons):
-            major_moons[idx] = self.calculate_gas_giant_type(blackbody_temperature, moon, primary_star, sulfur_check)
-            if major_moons[idx] == "Tiny (Sulfur)":
-                sulfur_check = False
-        return major_moons
+    def generate_world_size(self) -> float:
+        """Return mass and density of gas giant"""
+        if self.type == "Small (Gas Giant)":
+            mass, density = look_up(wt.gas_giant_size_tree, roll_dice(3))[0]
+        elif self.type == "Standard (Gas Giant)":
+            mass, density = look_up(wt.gas_giant_size_tree, roll_dice(3))[1]
+        elif self.type == "Large (Gas Giant)":
+            mass, density = look_up(wt.gas_giant_size_tree, roll_dice(3))[2]
+        return mass, density
 
-class TerrestrialPlanet(Planet):
+    def calculate_diameter(self) -> float:
+        """Return planet diameter as ratio of earth diameter"""
+        diameter = (self.mass/self.density)**(1./3)
+        return diameter
+
+
+class Terrestrial(Planet):
     """
     """
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
         Planet.__init__(self, primary_star, orbit, size)
-        
-        self.moons = self.generate_moons(self.relative_orbital_radius, self.size)
-        self.major_moons = self.calculate_moon_size(self.moons, self.size)
-        self.major_moons = self.calculate_moon_type(self.temperature, self.major_moons, primary_star)
-        self.type = self.calculate_terrestrial_type(self.temperature, self.size, primary_star)
 
-    def generate_moons(self, orbital_radius: float, size: str) -> List[int]:
+        self.moons = self.generate_moons()
+        self.major_moons = self.generate_major_moons()
+
+        self.atmospheric_mass = self.generate_atmospheric_mass()
+        self.atmospheric_composition = self.generate_atmospheric_composition()
+        self.hydrographic_coverage = self.generate_hydrographic_coverage()
+        self.surface_temperature = self.calculate_surface_temperature()
+        self.climate_type = self.calculate_climate_type()
+
+        self.density = self.generate_density()
+        self.diameter = self.generate_diameter()
+        self.surface_gravity = self.calculate_surface_gravity()
+        self.mass =  self.calculate_mass()
+
+    def generate_moons(self) -> List[int]:
         """Return a list containing number of moons in each family of satellites"""
-        if orbital_radius < 0.5:
-            modifier = -6
-        elif orbital_radius < 0.75:
-            modifier = -3
-        elif orbital_radius < 1.5:
-            modifier = -1
-        else:
-            modifier = 0
-        if size == "Tiny":
-            modifier = modifier - 2
-        elif size == "Small":
-            modifier = modifier - 1
-        elif size == "Large":
-            modifier = modifier + 1
+        modifier = look_up(st.terrestrial_planet_moon_size_modifier, self.semi_major_axis)
+        if self.size == "Tiny":
+            modifier -= 2
+        elif self.size == "Small":
+            modifier -= 1
+        elif self.size == "Large":
+            modifier += 1
         major_moons = max(roll_dice(1,-4+modifier), 0)
-        moonlets = max(roll_dice(1,-2+modifier), 0) if major_moons == 0 else 0
+        moonlets =  0 if major_moons > 0 else max(roll_dice(1,-2+modifier), 0)
         return [moonlets, major_moons]
 
-    def calculate_terrestrial_type(self, blackbody_temperature: float, size_class: str, primary_star: Star) -> str:
-        world_type = self.calculate_world_type(blackbody_temperature, size_class)
-        if size_class == "Tiny" and type(world_type) == list:
-            return world_type[0]
-        if (size_class == "Standard" or size_class == "Large") and type(world_type) == list:
-            if (world_type[0] == "Standard (Ice)" or world_type[0] == "Large (Ice)") and primary_star.mass <= 0.65:
-                return world_type[1]
-            elif (world_type[0] == "Standard (Ocean)" and roll_dice(3, max(math.floor(primary_star.age/.5), 10)) >= 18) or (world_type[0] == "Large (Ocean)" and roll_dice(3, max(math.floor(primary_star.age/.5), 5)) >= 18):
-                return world_type[1]
-            else:
-                return world_type[0]
-        return world_type
-    
-    def calculate_moon_type(self, blackbody_temperature: float, major_moons: List[str], primary_star: Star) -> List[Optional[str]]:
-        for idx, moon in enumerate(major_moons):
-            major_moons[idx] = self.calculate_terrestrial_type(blackbody_temperature, moon, primary_star)
-        return major_moons
 
 class StarSystem(object):
     """
@@ -431,95 +651,94 @@ class StarSystem(object):
     """
 
     def __init__(self, is_in_open_cluster: bool=False, guarantee_garden_world: bool=False) -> None:
-        self.is_in_open_cluster = is_in_open_cluster
-        self.guarantee_garden_world = guarantee_garden_world
+        self.number_of_stars = self.generate_number_of_stars(is_in_open_cluster)
+        self.stars = self.generate_stars(guarantee_garden_world)
 
-        self.number_of_stars = self.calculate_number_of_stars(self.is_in_open_cluster)
-        self.stars = self.calculate_stars(self.number_of_stars, self.guarantee_garden_world)
+        self.forbidden_zone = self.calculate_forbidden_zone()
 
-        self.forbidden_zone = self.calculate_forbidden_zone(self.stars)
+        self.gas_giants = self.calculate_gas_giants()
+        self.set_gas_giant_arrangements()
 
-        self.gas_giants = self.calculate_gas_giants(self.stars, self.forbidden_zone)
-        self.orbits = self.calculate_first_orbit(self.stars, self.gas_giants)
-        self.orbits =  self.calculate_orbits(self.orbits, self.forbidden_zone)
-        self.orbits = self.place_gas_giants(self.orbits, self.gas_giants)
-        self.orbits = self.fill_remaining_orbits(self.orbits, self.forbidden_zone)
+        self.orbits = self.calculate_first_orbit()
+        self.calculate_orbits()
+        self.place_gas_giants()
+        self.fill_remaining_orbits()
 
-    def calculate_number_of_stars(self, is_in_open_cluster: bool) -> int:
+    def generate_number_of_stars(self, is_in_open_cluster: bool) -> int:
         """Return a randomly generated number of stars"""
         return look_up(st.multiple_stars_tree, roll_dice(3, 3 if is_in_open_cluster else 0))
 
-    def calculate_stars(self, number_of_stars: int, guarantee_garden_world: bool) -> List[Star]:
+    def generate_stars(self, guarantee_garden_world: bool) -> List[Star]:
         """Return a list containing randomly generated Star objects"""
         stars = []
-        for designation in range(number_of_stars):
-            if designation > 0:
-                companion_star_mass_roll = roll_dice(1, -1)
-                if companion_star_mass_roll == 0:
-                    stars.append(CompanionStar(designation, stars[0].mass, stars[0].age, guarantee_garden_world))
-                else:
-                    mass = stars[0].mass-0.05*roll_dice(companion_star_mass_roll)
-                    stars.append(CompanionStar(designation, (mass if mass >= 0.10 else 0.10), stars[0].age, guarantee_garden_world))
+        for i in range(self.number_of_stars):
+            if i > 0:
+                stars.append(CompanionStar(designation=i, primary_star=stars[0]))
             else:
                 stars.append(Star(guarantee_garden_world=guarantee_garden_world))
         return stars
 
-    def calculate_forbidden_zone(self, stars: List[Star]) -> List[float]:
+    def calculate_forbidden_zone(self) -> List[float]:
         """Return a list containing points designating a system forbidden zone"""
         forbidden_zone = []
-        for star in stars:
+        for star in self.stars:
             if type(star) == CompanionStar:
                 forbidden_zone.append([((1-star.eccentricity)*star.semi_major_axis)/3, ((1+star.eccentricity)*star.semi_major_axis)*3])
         return forbidden_zone
 
-    def in_forbidden_zone(self, forbidden_zone: List[float], radius: float) -> bool:
+    def in_forbidden_zone(self, radius: float) -> bool:
         """Return whether or not a given radius falls within a set of forbidden zones"""
-        for inner_radius, outer_radius in forbidden_zone:
+        for inner_radius, outer_radius in self.forbidden_zone:
             if radius >= inner_radius and radius <= outer_radius:
                 return True
         return False
 
-    def calculate_gas_giants(self, stars: List[Star], forbidden_zone: List[float]) -> List[str]:
+    def calculate_gas_giants(self) -> List[str]:
         """Return a list of gas giant arrangement corresponding to each star in system"""
         gas_giants = []
-        for star in stars:
-            if self.in_forbidden_zone(forbidden_zone, star.snow_line_radius):
+        for star in self.stars:
+            if self.in_forbidden_zone(star.snow_line_radius):
                 gas_giants.append("No Gas Giant")
                 continue
             else:
                 gas_giants.append(look_up(st.gas_giant_arrangement_tree, roll_dice(3)))
         return gas_giants
 
-    def calculate_first_orbit(self, stars: List[Star], gas_giants: List[str]) -> Any:
+    def set_gas_giant_arrangements(self) -> None:
+        """Set the gas_giant_arrangement attribute in systems Star objects"""
+        for idx, star in enumerate(self.stars):
+            star.gas_giant_arrangement = self.gas_giants[idx]
+
+    def calculate_first_orbit(self) -> List[Any]:
         """Return a list containing stars and their corresponding first gas giant orbit"""
         orbits = []
-        for i, star in enumerate(stars):
+        for star in self.stars:
             orbit = [star]
-            if gas_giants[i] == "Conventional Gas Giant":
+            if star.gas_giant_arrangement == "Conventional Gas Giant":
                 orbit.append([(1+roll_dice(2,-2)*0.05)*star.snow_line_radius, "Gas Giant"])
-            elif gas_giants[i] == "Eccentric Gas Giant":
+            elif star.gas_giant_arrangement == "Eccentric Gas Giant":
                 orbit.append([(roll_dice(1)*0.125)*star.snow_line_radius, "Gas Giant"])
-            elif gas_giants[i] == "Epistellar Gas Giant":
+            elif star.gas_giant_arrangement == "Epistellar Gas Giant":
                 orbit.append([(1+roll_dice(3)*0.1)*star.inner_limit_radius, "Gas Giant"])
             orbits.append(orbit)
         return orbits
 
 # Man this is just gross looking
-    def calculate_orbits(self, orbits: Any, forbidden_zone: List[float]) -> Any:
+    def calculate_orbits(self) -> Any:
         """Returns the given 'orbits' object with a systems full orbital radii"""
-        for orbit in orbits:
+        for orbit in self.orbits:
             if len(orbit) > 1:
                 temp_radius = orbit[1][0]
             else:
                 temp_radius = orbit[0].outer_limit_radius/(1+0.05*roll_dice(1))
-                if not self.in_forbidden_zone(forbidden_zone, temp_radius):
+                if not self.in_forbidden_zone(temp_radius):
                     orbit.append([temp_radius])
             while True:
                 if temp_radius/look_up(st.orbital_spacing_tree, roll_dice(3)) > temp_radius - 0.15:
                     temp_radius = temp_radius - 0.15
                 else:
                     temp_radius = temp_radius/look_up(st.orbital_spacing_tree, roll_dice(3))
-                if not self.in_forbidden_zone(forbidden_zone, temp_radius) and temp_radius >= orbit[0].inner_limit_radius:
+                if not self.in_forbidden_zone(temp_radius) and temp_radius >= orbit[0].inner_limit_radius:
                     orbit.append([temp_radius])
                 if temp_radius >= orbit[0].inner_limit_radius:
                     continue
@@ -529,14 +748,14 @@ class StarSystem(object):
                 temp_radius = orbit[1][0]
             else:
                 temp_radius = (1+0.05*roll_dice(1))/orbit[0].outer_limit_radius
-                if not self.in_forbidden_zone(forbidden_zone, temp_radius):
+                if not self.in_forbidden_zone(temp_radius):
                     orbit.append([temp_radius])
             while True:
                 if temp_radius*look_up(st.orbital_spacing_tree, roll_dice(3)) < temp_radius + 0.15:
                     temp_radius = temp_radius + 0.15
                 else:
                     temp_radius = temp_radius*look_up(st.orbital_spacing_tree, roll_dice(3))
-                if not self.in_forbidden_zone(forbidden_zone, temp_radius) and temp_radius <= orbit[0].outer_limit_radius:
+                if not self.in_forbidden_zone(temp_radius) and temp_radius <= orbit[0].outer_limit_radius:
                     orbit.append([temp_radius])
                 if temp_radius <= orbit[0].outer_limit_radius:
                     continue
@@ -544,12 +763,11 @@ class StarSystem(object):
                     break
             if len(orbit) > 1:
                 orbit[1:] = sorted(orbit[1:])                
-        return orbits
 
-    def place_gas_giants(self, orbits: Any, gas_giants: List[str]) -> Any:
+    def place_gas_giants(self) -> Any:
         """Returns the given 'orbits' object with GasGiant objects assigned"""
-        for idx, orbit in enumerate(orbits):
-            if gas_giants[idx] == "No Gas Giant":
+        for idx, orbit in enumerate(self.orbits):
+            if self.gas_giants[idx] == "No Gas Giant":
                 continue
             for i in range(1, len(orbit)):
                 # I am assuming that this is the pre-assigned gas giant and that it is either inside
@@ -557,17 +775,16 @@ class StarSystem(object):
                 if len(orbit[i]) > 1 and orbit[i][1] == "Gas Giant":
                     orbit[i][1] = GasGiant(orbit[0], orbit[i][0], look_up(st.gas_giant_size_tree, roll_dice(3, 4)))
                     continue
-                if gas_giants[idx] == "Conventional Gas Giant" and orbit[i][0] >= orbit[0].snow_line_radius and roll_dice(3) <= 15:
+                if self.gas_giants[idx] == "Conventional Gas Giant" and orbit[i][0] >= orbit[0].snow_line_radius and roll_dice(3) <= 15:
                     orbit[i].append(GasGiant(orbit[0], orbit[i][0], look_up(st.gas_giant_size_tree, roll_dice(3))))
-                elif gas_giants[idx] == "Eccentric Gas Giant" and ((orbit[i][0] >= orbit[0].snow_line_radius and roll_dice(3) <= 14) or (orbit[i][0] <= orbit[0].snow_line_radius and roll_dice(3) <= 8)):
+                elif self.gas_giants[idx] == "Eccentric Gas Giant" and ((orbit[i][0] >= orbit[0].snow_line_radius and roll_dice(3) <= 14) or (orbit[i][0] <= orbit[0].snow_line_radius and roll_dice(3) <= 8)):
                     orbit[i].append(GasGiant(orbit[0], orbit[i][0], look_up(st.gas_giant_size_tree, roll_dice(3, 4 if orbit[i][0] <= orbit[0].snow_line_radius else 0))))
-                elif gas_giants[idx] == "Epistellar Gas Giant" and ((orbit[i][0] >= orbit[0].snow_line_radius and roll_dice(3) <= 14) or (orbit[i][0] <= orbit[0].snow_line_radius and roll_dice(3) <= 6)):
+                elif self.gas_giants[idx] == "Epistellar Gas Giant" and ((orbit[i][0] >= orbit[0].snow_line_radius and roll_dice(3) <= 14) or (orbit[i][0] <= orbit[0].snow_line_radius and roll_dice(3) <= 6)):
                     orbit[i].append(GasGiant(orbit[0], orbit[i][0], look_up(st.gas_giant_size_tree, roll_dice(3, 4 if orbit[i][0] <= orbit[0].snow_line_radius else 0))))
-        return orbits
 
-    def fill_remaining_orbits(self, orbits: Any, forbidden_zone: List[float]) -> Any:
+    def fill_remaining_orbits(self) -> Any:
         """Returns the given 'orbits' object with the remaining radii filled"""
-        for orbit in orbits:
+        for orbit in self.orbits:
             for i in range(1, len(orbit)):
                 if len(orbit[i]) > 1:
                     continue
@@ -582,14 +799,13 @@ class StarSystem(object):
                 if i > 1 and len(orbit[i-1]) > 1 and type(orbit[i-1][1]) == GasGiant:
                     modifier = modifier - 3
                 # this should find the radii closest to the forbidden zone limits
-                for zone in forbidden_zone:
+                for zone in self.forbidden_zone:
                     if orbit[i][0] == min(orbit[1:], key=lambda x:abs(x[0]-zone[0]))[0] or orbit[i][0] == min(orbit[1:], key=lambda x:abs(x[0]-zone[1]))[0]:
                         modifier = modifier -6
                         break
                 roll = roll_dice(3, modifier)
                 orbit_contents = look_up(st.orbit_contents_tree, roll)
                 if type(orbit_contents) == list:
-                    orbit[i].append(TerrestrialPlanet(orbit[0], orbit[i][0], orbit_contents[1]))
+                    orbit[i].append(Terrestrial(orbit[0], orbit[i][0], orbit_contents[1]))
                 else:
                     orbit[i].append(orbit_contents)
-        return orbits

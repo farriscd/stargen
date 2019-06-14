@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 import math
 
 from stargen import generator
@@ -15,8 +16,10 @@ class TestStar(unittest.TestCase):
         ]
         for mass, age, sequence in data:
             with self.subTest(mass=mass, age=age, sequence=sequence):
-                self.assertEqual(
-                    generator.Star.calculate_stellar_sequence(self, mass, age), sequence
+                self.mass = mass
+                self.age = age
+                self.assertAlmostEqual(
+                    generator.Star.calculate_stellar_sequence(self), sequence
                 )
 
     def test_star_stellar_temperature(self):
@@ -29,11 +32,11 @@ class TestStar(unittest.TestCase):
             with self.subTest(
                 mass=mass, sequence=sequence, age=age, temperature=temperature
             ):
-                self.assertEqual(
-                    generator.Star.calculate_stellar_temperature(
-                        self, mass, sequence, age
-                    ),
-                    temperature,
+                self.mass = mass
+                self.sequence = sequence
+                self.age = age
+                self.assertAlmostEqual(
+                    generator.Star.calculate_stellar_temperature(self), temperature
                 )
 
     def test_star_stellar_luminosity(self):
@@ -48,11 +51,11 @@ class TestStar(unittest.TestCase):
             with self.subTest(
                 mass=mass, sequence=sequence, age=age, luminosity=luminosity
             ):
-                self.assertEqual(
-                    generator.Star.calculate_stellar_luminosity(
-                        self, mass, sequence, age
-                    ),
-                    luminosity,
+                self.mass = mass
+                self.sequence = sequence
+                self.age = age
+                self.assertAlmostEqual(
+                    generator.Star.calculate_stellar_luminosity(self), luminosity
                 )
 
     def test_star_stellar_radius(self):
@@ -61,11 +64,10 @@ class TestStar(unittest.TestCase):
             with self.subTest(
                 temperature=temperature, luminosity=luminosity, radius=radius
             ):
-                self.assertEqual(
-                    generator.Star.calculate_stellar_radius(
-                        self, temperature, luminosity
-                    ),
-                    radius,
+                self.temperature = temperature
+                self.luminosity = luminosity
+                self.assertAlmostEqual(
+                    generator.Star.calculate_stellar_radius(self), radius
                 )
 
     def test_star_inner_limit_radius(self):
@@ -74,8 +76,10 @@ class TestStar(unittest.TestCase):
             with self.subTest(
                 mass=mass, luminosity=luminosity, inner_limit_radius=inner_limit_radius
             ):
-                self.assertEqual(
-                    generator.Star.calculate_inner_limit_radius(self, mass, luminosity),
+                self.mass = mass
+                self.luminosity = luminosity
+                self.assertAlmostEqual(
+                    generator.Star.calculate_inner_limit_radius(self),
                     inner_limit_radius,
                 )
 
@@ -83,8 +87,9 @@ class TestStar(unittest.TestCase):
         data = [[0.1, 4.0], [1.0, 40.0], [2.0, 80.0]]
         for mass, outer_limit_radius in data:
             with self.subTest(mass=mass, outer_limit_radius=outer_limit_radius):
-                self.assertEqual(
-                    generator.Star.calculate_outer_limit_radius(self, mass),
+                self.mass = mass
+                self.assertAlmostEqual(
+                    generator.Star.calculate_outer_limit_radius(self),
                     outer_limit_radius,
                 )
 
@@ -92,7 +97,33 @@ class TestStar(unittest.TestCase):
         data = [[0.10, 0.168], [1.00, 3.999], [2.00, 19.4]]
         for mass, snow_line_radius in data:
             with self.subTest(mass=mass, snow_line_radius=snow_line_radius):
-                self.assertEqual(
-                    generator.Star.calculate_snow_line_radius(self, mass),
-                    snow_line_radius,
+                self.mass = mass
+                self.assertAlmostEqual(
+                    generator.Star.calculate_snow_line_radius(self), snow_line_radius
+                )
+
+
+class TestCompanionStar(unittest.TestCase):
+    @patch("stargen.generator.Star")
+    
+    def test_companion_star_generate_companion_mass(self, mock_star):
+        self.primary_star = mock_star
+        data = [
+            [[0, 3], 1.0, 1.0],
+            [[2, 6], 1.0, 0.7],
+            [[3, 9], 1.0, 0.55],
+            [[5, 25], 2.0, 0.5],
+            [[4, 12], 0.5, 0.10],
+        ]
+        for dice_rolls, primary_star_mass, companion_star_mass in data:
+            with self.subTest(
+                dice_rolls=dice_rolls,
+                primary_star_mass=primary_star_mass,
+                companion_star_mass=companion_star_mass,
+            ):
+                generator.roll_dice = lambda n, m=0: dice_rolls.pop(0)
+                self.primary_star.mass = primary_star_mass
+                self.assertAlmostEqual(
+                    generator.CompanionStar.generate_companion_mass(self),
+                    companion_star_mass,
                 )

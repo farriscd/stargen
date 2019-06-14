@@ -19,15 +19,18 @@ random.seed(a=args.seed)
 
 if __name__ == "__main__":
     test_system = generator.StarSystem()
+    print("done")
+    """
     for orbits in test_system.orbits:
         offset = 0
         for orbit in orbits:
             if type(orbit) == generator.CompanionStar:
                 offset = orbit.semi_major_axis
-                print([offset, orbit.type + " " +orbit.sequence])
+                print([offset, ("" if orbit.type is None else orbit.type) + " " + orbit.sequence])
             elif type(orbit) == generator.Star:
-                print([0.0, orbit.type + " " + orbit.sequence])
+                print([0.0, ("" if orbit.type is None else orbit.type) + " " + orbit.sequence])
             elif isinstance(orbit[1], generator.Planet):
-                print([orbit[1].absolute_orbital_radius, orbit[1].type, orbit[1].moons, orbit[1].ring_system, orbit[1].major_moons])
+                print([orbit[1].semi_major_axis+offset, orbit[1].type, orbit[1].moons, [ x.type for x in orbit[1].major_moons]])
             else:
                 print([orbit[0]+offset, orbit[1]])
+    """

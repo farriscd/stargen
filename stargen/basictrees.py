@@ -15,6 +15,7 @@ Todo:
 """
 
 from intervaltree import Interval, IntervalTree
+from typing import Any, Union, Optional, List
 
 # World Type
 overall_type_tree = IntervalTree()
@@ -90,16 +91,87 @@ atmospheric_pressure_categories_tree[1.21 : 1.50 + 0.01] = "Dense"
 atmospheric_pressure_categories_tree[1.51 : 10 + 0.01] = "Very Dense"
 atmospheric_pressure_categories_tree[10.01 : 100 + 0.01] = "Superdense"
 
-marginal_atmospheres_trees = IntervalTree()
-marginal_atmospheres_trees[3 : 4 + 1] = "Chlorine or Flourine"
-marginal_atmospheres_trees[5 : 6 + 1] = "Sulfur Compounds"
-marginal_atmospheres_trees[7 : 7 + 1] = "Nitrogen Compounds"
-marginal_atmospheres_trees[8 : 9 + 1] = "Organic Toxins"
-marginal_atmospheres_trees[10 : 11 + 1] = "Low Oxygen"
-marginal_atmospheres_trees[12 : 13 + 1] = "Pollutants"
-marginal_atmospheres_trees[14 : 14 + 1] = "High Carbon Dioxide"
-marginal_atmospheres_trees[15 : 16 + 1] = "High Oxygen"
-marginal_atmospheres_trees[17 : 18 + 1] = "Inert Gases"
+marginal_atmospheres_tree = IntervalTree()
+marginal_atmospheres_tree[3 : 4 + 1] = "Chlorine or Flourine"
+marginal_atmospheres_tree[5 : 6 + 1] = "Sulfur Compounds"
+marginal_atmospheres_tree[7 : 7 + 1] = "Nitrogen Compounds"
+marginal_atmospheres_tree[8 : 9 + 1] = "Organic Toxins"
+marginal_atmospheres_tree[10 : 11 + 1] = "Low Oxygen"
+marginal_atmospheres_tree[12 : 13 + 1] = "Pollutants"
+marginal_atmospheres_tree[14 : 14 + 1] = "High Carbon Dioxide"
+marginal_atmospheres_tree[15 : 16 + 1] = "High Oxygen"
+marginal_atmospheres_tree[17 : 18 + 1] = "Inert Gases"
+
+# Climate
+world_climate_tree = IntervalTree()
+world_climate_tree[0 : 243 + 1] = "Frozen"
+world_climate_tree[244 : 255 + 1] = "Very Cold"
+world_climate_tree[256 : 265 + 1] = "Cold"
+world_climate_tree[266 : 277 + 1] = "Chilly"
+world_climate_tree[278 : 288 + 1] = "Cool"
+world_climate_tree[289 : 299 + 1] = "Normal"
+world_climate_tree[300 : 310 + 1] = "Warm"
+world_climate_tree[311 : 321 + 1] = "Tropical"
+world_climate_tree[322 : 332 + 1] = "Hot"
+world_climate_tree[333 : 343 + 1] = "Very Hot"
+world_climate_tree[344 : 13145.8 + 1] = "Infernal"
+
+
+def temperature_factors(world_type: str, hydrographic_coverage: float = 0.0) -> float:
+    """Returns the absorption and greenhouse factors"""
+    if world_type == "Asteroid Belt":
+        absorption_factor = 0.97
+        greenhouse_factor = 0.0
+    elif world_type == "Tiny (Ice)":
+        absorption_factor = 0.86
+        greenhouse_factor = 0.0
+    elif world_type == "Tiny (Rock)":
+        absorption_factor = 0.97
+        greenhouse_factor = 0.0
+    elif world_type == "Tiny (Sulfur)":
+        absorption_factor = 0.77
+        greenhouse_factor = 0.0
+    elif world_type == "Small (Hadean)" or world_type == "Standard (Hadean)":
+        absorption_factor = 0.67
+        greenhouse_factor = 0.0
+    elif world_type == "Small (Ice)":
+        absorption_factor = 0.93
+        greenhouse_factor = 0.10
+    elif world_type == "Small (Rock)":
+        absorption_factor = 0.96
+        greenhouse_factor = 0.0
+    elif world_type == "Standard (Ammonia)" or world_type == "Large (Ammonia)":
+        absorption_factor = 0.84
+        greenhouse_factor = 0.20
+    elif world_type == "Standard (Ice)" or world_type == "Large (Ice)":
+        absorption_factor = 0.86
+        greenhouse_factor = 0.20
+    elif (
+        world_type == "Standard (Ocean)"
+        or world_type == "Large (Ocean)"
+        or world_type == "Standard (Garden)"
+        or world_type == "Large (Garden)"
+    ):
+        if hydrographic_coverage <= 0.20:
+            absorption_factor = 0.95
+            greenhouse_factor = 0.16
+        elif hydrographic_coverage <= 0.50:
+            absorption_factor = 0.92
+            greenhouse_factor = 0.16
+        elif hydrographic_coverage <= 0.90:
+            absorption_factor = 0.88
+            greenhouse_factor = 0.16
+        else:
+            absorption_factor = 0.84
+            greenhouse_factor = 0.16
+    elif world_type == "Standard (Greenhouse)" or world_type == "Large (Greenhouse)":
+        absorption_factor = 0.77
+        greenhouse_factor = 2.0
+    elif world_type == "Standard (Chthonian)" or world_type == "Large (Chthonian)":
+        absorption_factor = 0.97
+        greenhouse_factor = 0.0
+    return absorption_factor, greenhouse_factor
+
 
 # World Size
 world_density_tree = IntervalTree()

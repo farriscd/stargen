@@ -21,7 +21,10 @@ temperature ranges.
 The Orbital Separation, Stellar Orbital Eccentricity, Gas Giant Size,
 Orbit Contents, and Moon Size data have had their lower or upper bounds
 adjusted to allow for stacking modifiers taking them beyond their normal
-ranges.
+ranges. Gas Giant Size has also had its wording changed.
+
+Special trees have been made to allow for clearer code in generating Planet
+moon sizes.
 """
 
 from intervaltree import Interval, IntervalTree
@@ -246,7 +249,7 @@ orbital_spacing_tree[17 : 18 + 1] = 2.0
 # Place Worlds
 gas_giant_size_tree = IntervalTree()
 gas_giant_size_tree[3 : 10 + 1] = "Small"
-gas_giant_size_tree[11 : 16 + 1] = "Medium"
+gas_giant_size_tree[11 : 16 + 1] = "Standard"
 gas_giant_size_tree[17 : 100 + 1] = "Large"
 
 orbit_contents_tree = IntervalTree()
@@ -258,6 +261,20 @@ orbit_contents_tree[12 : 15 + 1] = ["Terrestrial Planet", "Standard"]
 orbit_contents_tree[16 : 100 + 1] = ["Terrestrial Planet", "Large"]
 
 # Place Moons
+gas_giant_moon_size_modifiers = IntervalTree()
+gas_giant_moon_size_modifiers[0:0.1] = [-10, -6, -6]
+gas_giant_moon_size_modifiers[0.1:0.5] = [-8, -5, -6]
+gas_giant_moon_size_modifiers[0.5:0.75] = [-6, -4, -5]
+gas_giant_moon_size_modifiers[0.75:1.5] = [-3, -1, -4]
+gas_giant_moon_size_modifiers[1.5:3] = [0, 0, -1]
+gas_giant_moon_size_modifiers[3:81] = [0, 0, 0]
+
+terrestrial_planet_moon_size_modifier = IntervalTree()
+terrestrial_planet_moon_size_modifier[0:0.5] = -6
+terrestrial_planet_moon_size_modifier[0.5:0.75] = -3
+terrestrial_planet_moon_size_modifier[0.75:1.5] = -1
+terrestrial_planet_moon_size_modifier[1.5:81] = 0
+
 moon_size_tree = IntervalTree()
 moon_size_tree[0 : 11 + 1] = -3
 moon_size_tree[12 : 14 + 1] = -2
