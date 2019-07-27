@@ -11,6 +11,20 @@ structure better, tables have been modified and in some cases omitted.
 """
 
 from intervaltree import Interval, IntervalTree
+import random
+
+# This is a duplicate I need to remove once I square away the import
+def roll_dice(number_of_dice: int = 1, modifier: int = 0) -> int:
+    """Return the result of a simulated 6-sided die roll
+
+    Args:
+        number_of_dice: The number of die to be rolled
+        modifier: A number to be added/subtracted to the sum of the die roll
+    """
+    sum_of_dice = 0
+    for _ in range(number_of_dice):
+        sum_of_dice += random.randrange(1, 6 + 1)
+    return sum_of_dice + modifier
 
 # World Types
 tiny_world_type_assignment_tree = IntervalTree()
@@ -94,4 +108,14 @@ planetary_orbital_eccentricity_tree[15 : 15 + 1] = 0.5
 planetary_orbital_eccentricity_tree[16 : 16 + 1] = 0.6
 planetary_orbital_eccentricity_tree[17 : 17 + 1] = 0.7
 planetary_orbital_eccentricity_tree[18 : 100 + 1] = 0.8
+
+# Special Rotation
+special_rotation_tree = IntervalTree()
+special_rotation_tree[0 : 6 + 1] = 0
+special_rotation_tree[7 : 7 + 1] = roll_dice(1) * 2 * 24
+special_rotation_tree[8 : 8 + 1] = roll_dice(1) * 5 * 24
+special_rotation_tree[9 : 9 + 1] = roll_dice(1) * 10 * 24
+special_rotation_tree[10 : 10 + 1] = roll_dice(1) * 20 * 24
+special_rotation_tree[11 : 11 + 1] = roll_dice(1) * 50 * 24
+special_rotation_tree[12 : 12 + 1] = roll_dice(1) * 100 * 24
 
