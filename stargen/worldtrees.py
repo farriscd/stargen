@@ -13,6 +13,8 @@ structure better, tables have been modified and in some cases omitted.
 from intervaltree import Interval, IntervalTree
 import random
 
+from typing import Any, Union, Optional, List
+
 # This is a duplicate I need to remove once I square away the import
 def roll_dice(number_of_dice: int = 1, modifier: int = 0) -> int:
     """Return the result of a simulated 6-sided die roll
@@ -25,6 +27,17 @@ def roll_dice(number_of_dice: int = 1, modifier: int = 0) -> int:
     for _ in range(number_of_dice):
         sum_of_dice += random.randrange(1, 6 + 1)
     return sum_of_dice + modifier
+
+
+def look_up(tree: IntervalTree, point: Union[float, int]) -> Any:
+    """Return data from interval tree at point
+
+    Args:
+        tree: The interval tree containing data to lookup
+        point: The point within range that the data is stored
+    """
+    return sorted(tree[point])[0].data
+
 
 # World Types
 tiny_world_type_assignment_tree = IntervalTree()
@@ -119,3 +132,33 @@ special_rotation_tree[10 : 10 + 1] = roll_dice(1) * 20 * 24
 special_rotation_tree[11 : 11 + 1] = roll_dice(1) * 50 * 24
 special_rotation_tree[12 : 12 + 1] = roll_dice(1) * 100 * 24
 
+# Axial Tilt
+axial_tilt_extended_tree = IntervalTree()
+axial_tilt_extended_tree[1 : 2 + 1] = 50 + roll_dice(2, -2)
+axial_tilt_extended_tree[3 : 4 + 1] = 60 + roll_dice(2, -2)
+axial_tilt_extended_tree[5 : 5 + 1] = 70 + roll_dice(2, -2)
+axial_tilt_extended_tree[6 : 6 + 1] = 80 + roll_dice(2, -2)
+
+axial_tilt_tree = IntervalTree()
+axial_tilt_tree[3 : 6 + 1] = 0 + roll_dice(2, -2)
+axial_tilt_tree[7 : 9 + 1] = 10 + roll_dice(2, -2)
+axial_tilt_tree[10 : 12 + 1] = 20 + roll_dice(2, -2)
+axial_tilt_tree[13 : 14 + 1] = 30 + roll_dice(2, -2)
+axial_tilt_tree[15 : 16 + 1] = 40 + roll_dice(2, -2)
+axial_tilt_tree[17 : 18 + 1] = look_up(axial_tilt_extended_tree, roll_dice(1))
+
+# Volcanic Activity
+volcanic_activity_tree = IntervalTree()
+volcanic_activity_tree[0 : 16 + 1] = "None"
+volcanic_activity_tree[17 : 20 + 1] = "Light"
+volcanic_activity_tree[21 : 26 + 1] = "Moderate"
+volcanic_activity_tree[27 : 70 + 1] = "Heavy"
+volcanic_activity_tree[71 : 16000 + 1] = "Extreme"
+
+# Tectonic Activity
+tectonic_activity_tree = IntervalTree()
+tectonic_activity_tree[-6000 : 6 + 1] = "None"
+tectonic_activity_tree[7 : 10 + 1] = "Light"
+tectonic_activity_tree[11 : 14 + 1] = "Moderate"
+tectonic_activity_tree[15 : 18 + 1] = "Heavy"
+tectonic_activity_tree[19 : 6000 + 1] = "Extreme"

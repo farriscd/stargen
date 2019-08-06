@@ -3,7 +3,6 @@ This module contains the Classes and Methods for randomly generating star system
 according to the GURPS Space 4th edition system.
 
 Todo:
-    * Finish generation of planetary details
     * Refactor World Type Generation for everything south of Stars/CompanionStars
     * Consider use of private variables
     * Still calculating separate orbits for close binary pairs rather than as center of mass
@@ -221,8 +220,7 @@ class CompanionStar(Star):
 
     Args:
         designation: number designating which companion this star is
-        mass: mass in solar masses
-        age: age in billions of years
+        primary_star: 
 
     Attributes:
         designation (int): number designating which companion this star is
@@ -299,6 +297,34 @@ class CompanionStar(Star):
 
 class World(object):
     """
+    A World object is a parent type to planets and major moons.
+
+    Args:
+        primary_star:
+        orbit:
+        size:
+
+    Attributes:
+        primary_star:
+        semi_major_axis:
+        size:
+        temperature:
+        type:
+        major_moons:
+        mass:
+        density:
+        diameter:
+        surface_gravity:
+        orbital_period:
+        total_tidal_effect:
+        is_tidally_locked:
+        axial_tilt:
+        atmospheric_mass:
+        atmospheric_composition:
+        hydrographic_coverage:
+        atmospheric_pressure:
+        volcanic_activity:
+        tectonic_activity:
     """
 
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
@@ -310,20 +336,27 @@ class World(object):
         self.temperature = self.calculate_blackbody_temperature()
         self.type = self.calculate_world_type()
 
+        self.major_moons = []
+
         self.mass = None
         self.density = None
         self.diameter = None
         self.surface_gravity = None
 
+        self.orbital_period = None
         self.total_tidal_effect = None
         self.rotation_period = None
         self.is_tidally_locked = False
+        self.axial_tilt = None
 
         # Attributes for Terrestrial/MajorMoon
         self.atmospheric_mass = None
         self.atmospheric_composition = None
         self.hydrographic_coverage = None
         self.atmospheric_pressure = None
+
+        self.volcanic_activity = None
+        self.tectonic_activity = None
 
     def calculate_blackbody_temperature(self) -> float:
         """Return the effective temperature of the planet"""
@@ -514,9 +547,66 @@ class World(object):
         )
         return atmospheric_pressure_category
 
+    def generate_axial_tilt(self) -> int:
+        """Return the axial tilt of a planet in degrees"""
+        axial_tilt = look_up(wt.axial_tilt_tree, roll_dice(3))
+        return axial_tilt
+
+    def generate_volcanic_atmosphere(self) -> None:
+        """Adjusts the worlds atmosphere to marginal depending on volcanic activity"""
+        if self.type == "Standard (Garden)" or self.type == "Large (Garden)":
+            if self.volcanic_activity == "Heavy":
+                if roll_dice(3) <= 8:
+                    self.atmospheric_composition = random.choice(
+                        ["Pollutants", "Sulfur Compounds"]
+                    )
+            elif self.volcanic_activity == "Extreme":
+                if roll_dice(3) <= 14:
+                    self.atmospheric_composition = random.choice(
+                        ["Pollutants", "Sulfur Compounds"]
+                    )
+
+    def generate_tectonic_activity(self) -> str:
+        """"""
+        if self.size == "Tiny" or self.size == "Small":
+            tectonic_activity = "None"
+        else:
+            modifier = 0
+            if self.volcanic_activity == "None":
+                modifier -= 8
+            if self.volcanic_activity == "Light":
+                modifier -= 4
+            if self.volcanic_activity == "Heavy":
+                modifier += 4
+            if self.volcanic_activity == "Extreme":
+                modifier += 8
+            if self.hydrographic_coverage == 0:
+                modifier -= 4
+            if self.hydrographic_coverage < 0.50:
+                modifier -= 2
+            if isinstance(self, Terrestrial):
+                if len(self.major_moons) == 1:
+                    modifier += 2
+                if len(self.major_moons) > 1:
+                    modifier += 4
+            tectonic_activity = look_up(wt.tectonic_activity_tree, roll_dice(3, modifier))
+        return tectonic_activity
+
+
 
 class Planet(World):
     """
+    A World-type object, contains methods used in generation of planets but not moons.
+
+    Args:
+        primary_star:
+        orbit:
+        size:
+
+    Attributes:
+        moons:
+        major_moons:
+        is_retrograde_orbit:
     """
 
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
@@ -591,9 +681,48 @@ class Planet(World):
             is_retrograde_orbit = True
         return is_retrograde_orbit
 
+    def calculate_local_calendar(self) -> Union[float, str]:
+        """Return the apparent day length of a planet"""
+        sidereal_period = self.orbital_period
+        rotation_period = self.rotation_period
+        if self.is_retrograde_orbit:
+            rotation_period = -1 * rotation_period
+        if rotation_period == sidereal_period:
+            apparent_length = "No apparent motion"
+        else:
+            apparent_length = (sidereal_period * rotation_period) / (
+                sidereal_period - rotation_period
+            )
+        return apparent_length
+
 
 class MajorMoon(World):
     """
+    A World-type object that contains methods and attributes of major moons.
+
+    Args:
+        primary_planet:
+
+    Attributes:
+        atmospheric_mass:
+        atmospheric_composition:
+        hydrographic_coverage:
+        surface_temperature:
+        climate_type:
+        density:
+        diameter:
+        surface_gravity:
+        mass:
+        satellite_orbital_radius:
+        satellite_orbital_period:
+        total_tidal_effect:
+        rotation_pariod:
+        axial_tilt:
+        is_retrograde_orbit:
+        apparent_length:
+        apparent_length_as_seen_by_planet:
+        volcanic_activity:
+        tectonic_activity:
     """
 
     def __init__(self, primary_planet: Planet) -> None:
@@ -609,6 +738,7 @@ class MajorMoon(World):
             self.primary_planet.semi_major_axis,
             self.size,
         )
+        delattr(self, "major_moons")
 
         self.atmospheric_mass = self.generate_atmospheric_mass()
         self.atmospheric_composition = self.generate_atmospheric_composition()
@@ -628,8 +758,16 @@ class MajorMoon(World):
         self.satellite_orbital_period = self.calculate_satellite_orbital_period()
         self.total_tidal_effect = self.calculate_total_tidal_effect()
         self.rotation_period = self.generate_rotation_period()
+        if not self.is_tidally_locked:
+            self.axial_tilt = self.generate_axial_tilt()
 
         self.is_retrograde_orbit = self.generate_retrograde_orbit()
+        self.apparent_length = self.calculate_local_calendar()
+        # self.apparent_length_as_seen_by_planet = self.calculate_calendar_as_seen()
+
+        self.volcanic_activity = self.generate_volcanic_activity()
+        self.generate_volcanic_atmosphere()
+        self.tectonic_activity = self.generate_tectonic_activity()
 
     def generate_moon_size(self, planet_size: str) -> str:
         """Return a string describing the size of the moon"""
@@ -673,8 +811,8 @@ class MajorMoon(World):
 
     def readjust_satellite_orbital_radius(self) -> None:
         """Readjust the orbital radius if currently within an illegal orbit"""
-        while self.illegal_orbit is True:
-            self.satellite_orbital_radius = self.generate_satellite_orbital_radius
+        while self.illegal_orbit() is True:
+            self.satellite_orbital_radius = self.generate_satellite_orbital_radius()
 
     def calculate_satellite_orbital_period(self) -> float:
         """Return the orbital period of the moon around its planet in Earth diameters"""
@@ -748,9 +886,68 @@ class MajorMoon(World):
             is_retrograde_orbit = True
         return is_retrograde_orbit
 
+    def calculate_local_calendar(self) -> Union[float, str]:
+        """Return the apparent day length of a moon"""
+        sidereal_period = self.primary_planet.orbital_period
+        rotation_period = self.rotation_period
+        if self.is_retrograde_orbit:
+            rotation_period = -1 * rotation_period
+        if rotation_period == sidereal_period:
+            apparent_length = "No apparent motion"
+        else:
+            apparent_length = (sidereal_period * rotation_period) / (
+                sidereal_period - rotation_period
+            )
+        return apparent_length
+
+    def calculate_calendar_as_seen(self) -> Union[float, str]:
+        """Return the apparent day length of a moon as seen by host planet"""
+        sidereal_period = self.satellite_orbital_period
+        rotation_period = self.primary_planet.rotation_period
+        if self.is_retrograde_orbit:
+            rotation_period = -1 * rotation_period
+        if rotation_period == sidereal_period:
+            apparent_length = "No apparent motion"
+        else:
+            apparent_length = (sidereal_period * rotation_period) / (
+                sidereal_period - rotation_period
+            )
+        return apparent_length
+
+    def generate_volcanic_activity(self) -> str:
+        """Return the level of volcanic activity of a moon"""
+        modifier = round(40 * (self.surface_gravity / self.primary_star.age))
+        if self.type == "Tiny (Sulfur)":
+            modifier += 60
+        if isinstance(self.primary_planet, GasGiant):
+            modifier += 5
+        volcanic_activity = look_up(wt.volcanic_activity_tree, roll_dice(3, modifier))
+        return volcanic_activity
+
 
 class GasGiant(Planet):
     """
+    A Planet-type object containing methods and attributes for Gas Giant type planets
+
+    Args:
+        primary_star:
+        orbit:
+        size:
+
+    Attributes:
+        type:
+        mass:
+        diameter:
+        surface_gravity:
+        orbital_period:
+        orbital_eccentricity:
+        tiny_sulfur_moon_possible:
+        moons:
+        ring_system:
+        total_tidal_effect:
+        rotation_period:
+        axial_tilt:
+        apparent_length:
     """
 
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
@@ -759,6 +956,8 @@ class GasGiant(Planet):
         delattr(self, "atmospheric_composition")
         delattr(self, "hydrographic_coverage")
         delattr(self, "atmospheric_pressure")
+        delattr(self, "volcanic_activity")
+        delattr(self, "tectonic_activity")
 
         self.type = size + " (Gas Giant)"
         self.mass, self.density = self.generate_world_size()
@@ -778,6 +977,10 @@ class GasGiant(Planet):
 
         self.total_tidal_effect = self.calculate_total_tidal_effect()
         self.rotation_period = self.generate_rotation_period()
+        if not self.is_tidally_locked:
+            self.axial_tilt = self.generate_axial_tilt()
+
+        self.apparent_length = self.calculate_local_calendar()
 
     def generate_moons(self) -> List[int]:
         """Return a list containing number of moons in each family of satellites"""
@@ -851,6 +1054,34 @@ class GasGiant(Planet):
 
 class Terrestrial(Planet):
     """
+    A Planet-type object containing methods and attributes for Terrestrial planets.
+
+    Args:
+        primary_star:
+        orbit:
+        size:
+
+    Attributes:
+        atmospheric_mass:
+        atmospheric_composition:
+        hydrographic_coverage:
+        surface_temperature:
+        climate_type:
+        density:
+        diameter:
+        surface_gravity:
+        mass:
+        orbital_period:
+        orbital_eccentricity:
+        moons:
+        major_moons:
+        total_tidal_effect:
+        rotation_period:
+        is_tidally_locked:
+        axial_tilt:
+        apparent_length:
+        volcanic_activity:
+        tectonic_activity:
     """
 
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
@@ -875,6 +1106,13 @@ class Terrestrial(Planet):
 
         self.total_tidal_effect = self.calculate_total_tidal_effect()
         self.rotation_period = self.generate_rotation_period()
+        if not self.is_tidally_locked:
+            self.axial_tilt = self.generate_axial_tilt()
+        self.apparent_length = self.calculate_local_calendar()
+
+        self.volcanic_activity = self.generate_volcanic_activity()
+        self.generate_volcanic_atmosphere()
+        self.tectonic_activity = self.generate_tectonic_activity()
 
     def generate_moons(self) -> List[int]:
         """Return a list containing number of moons in each family of satellites"""
@@ -925,6 +1163,18 @@ class Terrestrial(Planet):
             self.is_tidally_locked = True
             rotation_period = self.orbital_period * 365.26
         return rotation_period
+
+    def generate_volcanic_activity(self) -> str:
+        """Return the level of volcanic activity of a planet"""
+        modifier = round(40 * (self.surface_gravity / self.primary_star.age))
+        if self.type == "Tiny (Sulfur)":
+            modifier += 60
+        if len(self.major_moons) == 1:
+            modifier += 5
+        elif len(self.major_moons) > 1:
+            modifier += 10
+        volcanic_activity = look_up(wt.volcanic_activity_tree, roll_dice(3, modifier))
+        return volcanic_activity
 
 
 class StarSystem(object):
