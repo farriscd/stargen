@@ -7,11 +7,6 @@ of inputs the IntervalTree data structure is used. Due to the interval
 inclusivity of Python clashing with the interval exclusivity of the tables,
 most ranges are notated as [start:end+1]. Due to this and to fit the data
 structure better, tables have been modified and in some cases omitted.
-
-Atmospheric Pressure Categories edited to allow ranges of values.
-
-Todo:
-    * Implement any of this stuff
 """
 
 from intervaltree import Interval, IntervalTree

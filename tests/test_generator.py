@@ -105,14 +105,13 @@ class TestStar(unittest.TestCase):
 
 class TestCompanionStar(unittest.TestCase):
     @patch("stargen.generator.Star")
-    
     def test_companion_star_generate_companion_mass(self, mock_star):
         self.primary_star = mock_star
         data = [
             [[0, 3], 1.0, 1.0],
             [[2, 6], 1.0, 0.7],
             [[3, 9], 1.0, 0.55],
-            [[5, 25], 2.0, 0.5],
+            [[5, 25], 2.0, 0.75],
             [[4, 12], 0.5, 0.10],
         ]
         for dice_rolls, primary_star_mass, companion_star_mass in data:

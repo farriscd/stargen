@@ -3,25 +3,22 @@ This module contains the Classes and Methods for randomly generating star system
 according to the GURPS Space 4th edition system.
 
 Todo:
-    * Refactor World Type Generation for everything south of Stars/CompanionStars
-    * Consider use of private variables
+    * Rewrite generate_rotation_period method so that is_tidally_locked is more clearly set
     * Still calculating separate orbits for close binary pairs rather than as center of mass
     * Complete generation of distant companion subcompanions and make sure trinary star
     systems adhere to the suggested guidelines
     * Current calculate_first_orbit allow orbits to fall within forbidden zones
-    * Nothing for placing a pre-designed world, not sure if that is a feature or add 
-    or not, something that would use the guarantee_garden_world check
+    * Make use of guarantee_garden_world check
     * White Dwarf stars are currently given "None" as temperature since GURPS provides
     no way to calculate it, although it claims to be able to be "quite high"
-    * Find someway to fudge all the numbers after calculations have been made to add 
-    variance, GURPS has suggestions for variance in corresponding tables
+    * Add some fine tuned randomization to generated numbers
 """
 
 import math
 import random
-from intervaltree import Interval, IntervalTree
 from typing import Any, Union, Optional, List
 
+from .helpers import roll_dice, look_up
 from . import basictrees as bt
 from . import startrees as st
 from . import worldtrees as wt
@@ -29,49 +26,26 @@ from . import worldtrees as wt
 size_list = ["Tiny", "Small", "Standard", "Large"]
 
 
-def roll_dice(number_of_dice: int = 1, modifier: int = 0) -> int:
-    """Return the result of a simulated 6-sided die roll
-
-    Args:
-        number_of_dice: The number of die to be rolled
-        modifier: A number to be added/subtracted to the sum of the die roll
-    """
-    sum_of_dice = 0
-    for _ in range(number_of_dice):
-        sum_of_dice += random.randrange(1, 6 + 1)
-    return sum_of_dice + modifier
-
-
-def look_up(tree: IntervalTree, point: Union[float, int]) -> Any:
-    """Return data from interval tree at point
-
-    Args:
-        tree: The interval tree containing data to lookup
-        point: The point within range that the data is stored
-    """
-    return sorted(tree[point])[0].data
-
-
 class Star(object):
     """
-    The Star object contains data generated randomly or by provided mass and age
+    The Star object contains data and methods for the creation of a star
 
     Args:
-        mass: mass measured in solar masses
-        age: age measured in billions of years
-        guarantee_garden_world: whether or not a garden world is mandatory
+        mass (float): the mass of the object in relation to the Earths mass mass measured in solar masses
+        age (float): age measured in billions of years
+        guarantee_garden_world (bool): increases chances of generating a Garden World type planet
 
     Attributes:
-        mass (float): mass measured in solar masses
-        age (float): age measured in billions of years
-        type (str or NoneType): most probable spectral type
+        mass (float): the mass of the object in relation to the Earths mass mass of the star in solar masses
+        age (float): age of the star in billions of years
+        type (str or NoneType): most probable spectral type, NoneType for White Dwarf stars
         sequence (str): luminosity class of the star; "III", "IV", "V", and "D"
-        temperature (float or NoneType): effective temperature measured in kelvins
-        luminosity (float): total energy output measured in solar luminosities
-        radius (float or NoneType): radius measured in astronomical units
-        inner_limit_radius (float): radius for planetary formation in astronomical units
-        outer_limit_radius (float): radius for planetary formation in astronomical units
-        snow_line_radius(float): radius for planetary formation in astronomical units
+        temperature (float or NoneType): effective temperature of the star measured in kelvins
+        luminosity (float): total energy output of the star measured in solar luminosities
+        radius (float or NoneType): radius of the star measured in astronomical units, NoneType for White Dwarf stars
+        inner_limit_radius (float): radius used for generating planet generation in astronomical units
+        outer_limit_radius (float): radius used for planet generation in astronomical units
+        snow_line_radius(float): radius used for planet generation in astronomical units
     """
 
     def __init__(
@@ -219,13 +193,13 @@ class CompanionStar(Star):
     A Star-based object for non-primary stars in multistar systems
 
     Args:
-        designation: number designating which companion this star is
-        primary_star: 
+        designation (int): number designating which companion this star is
+        primary_star (Star):  the Star object around which this object gravitates the 'parent' star
 
     Attributes:
         designation (int): number designating which companion this star is
         orbital_separation (list: str, float): a list containing seperation and eccentricity
-        semi_major_axis (float): the 'average' radius of orbit
+        semi_major_axis (float): the average orbital radius of this object around its primary_star the 'average' radius of orbit in astronomical units
         eccentricity (float): eccentricity of the companion stars orbit
     """
 
@@ -297,34 +271,19 @@ class CompanionStar(Star):
 
 class World(object):
     """
-    A World object is a parent type to planets and major moons.
+    This class is a template with common methods used by the MajorMoon, Terrestrial, and GasGiant classes.
 
     Args:
-        primary_star:
-        orbit:
-        size:
+        primary_star (Star):  the Star object around which this object gravitates
+        orbit (float): the average orbital radius of this object around its primary_star
+        size (str): a string corresponding to the size of the object; "Tiny", "Small", "Standard" or "Large"
 
     Attributes:
-        primary_star:
-        semi_major_axis:
-        size:
-        temperature:
-        type:
-        major_moons:
-        mass:
-        density:
-        diameter:
-        surface_gravity:
-        orbital_period:
-        total_tidal_effect:
-        is_tidally_locked:
-        axial_tilt:
-        atmospheric_mass:
-        atmospheric_composition:
-        hydrographic_coverage:
-        atmospheric_pressure:
-        volcanic_activity:
-        tectonic_activity:
+        primary_star (Star):  the Star object around which this object gravitates
+        semi_major_axis (float): the average orbital radius of this object around its primary_star
+        size (str): a string corresponding to the size of the object; "Tiny", "Small", "Standard" or "Large"
+        temperature (float): the average blackbody temperature of this object
+        type (str): a string corresponding to the type of object; i.e. "Gas Giant" or "Hadean"
     """
 
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
@@ -589,24 +548,26 @@ class World(object):
                     modifier += 2
                 if len(self.major_moons) > 1:
                     modifier += 4
-            tectonic_activity = look_up(wt.tectonic_activity_tree, roll_dice(3, modifier))
+            tectonic_activity = look_up(
+                wt.tectonic_activity_tree, roll_dice(3, modifier)
+            )
         return tectonic_activity
-
 
 
 class Planet(World):
     """
-    A World-type object, contains methods used in generation of planets but not moons.
+    This class is a template with common methods used by the Terrestrial and GasGiant classes.
 
     Args:
-        primary_star:
-        orbit:
-        size:
+        primary_star (Star):  the Star object around which this object gravitates
+        orbit (float): the average orbital radius of this object around its primary_star
+        size (str): a string corresponding to the size of the object; "Tiny", "Small", "Standard" or "Large"
 
     Attributes:
-        moons:
-        major_moons:
-        is_retrograde_orbit:
+        moons (list[int]): a list containing the number of moons, major moons, or moonlets of this object
+        major_moons (list[MajorMoon]): a list containing the MajorMoon objects in rotation around this object
+        is_retrograde_orbit (bool): whether or not this object rotations opposite  of its primary_star
+
     """
 
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
@@ -701,28 +662,35 @@ class MajorMoon(World):
     A World-type object that contains methods and attributes of major moons.
 
     Args:
-        primary_planet:
+        primary_planet (Planet): The Terrestrial or GasGiant object which this moon orbits
 
     Attributes:
-        atmospheric_mass:
-        atmospheric_composition:
-        hydrographic_coverage:
-        surface_temperature:
-        climate_type:
-        density:
-        diameter:
-        surface_gravity:
-        mass:
-        satellite_orbital_radius:
-        satellite_orbital_period:
-        total_tidal_effect:
-        rotation_pariod:
-        axial_tilt:
-        is_retrograde_orbit:
-        apparent_length:
+        primary_planet (Planet): The Terrestrial or GasGiant object which this moon orbits
+        size (str): a string corresponding to the size of the object; "Tiny", "Small", "Standard" or "Large" 
+        primary_star (Star):  the Star object around which this object gravitates
+        semi_major_axis (float): the average orbital radius of this object around its primary_star
+        temperature (float): the average blackbody temperature of this object
+        type (str): a string corresponding to the type of object; i.e. "Gas Giant" or "Hadean"
+        atmospheric_mass (float): the rough estimate of gaseous volatiles in this objects atmosphere
+        atmospheric_composition (list[str]): a list of strings describing the breathability of this objects atompshere
+        hydrographic_coverage (float): a float from 0 to 1 describing the percentage of the object covered in water
+        surface_temperature (float): the average surface temperature of the object
+        climate_type (str): a string describing the average climate of this object
+        density (float):  the density of this object in relation to the Earths density
+        diameter (float): the diameter of this object in relation to the Earths diameter
+        surface_gravity (float): the gravity at this objects surface in relation to the Earths gravity
+        mass (float): the mass of the object in relation to the Earths mass
+        satellite_orbital_radius (float): the average orbital radius of this object around its primary_planet
+        satellite_orbital_period (float): the average orbital period of this object around its primary_planet
+        total_tidal_effect (int): an int used in calculating tidal effects on this object
+        rotation_period (float): the average orbital period of this object around its primary_star
+        is_tidally_locked (bool): whether or not this object is tidally locked to its primary_planet
+        axial_tilt (int): the axial tilt of this object in degrees
+        is_retrograde_orbit (bool): whether or not this object rotations opposite  of its primary_star
+        apparent_length (float): the length of a 'day' on this object
         apparent_length_as_seen_by_planet:
-        volcanic_activity:
-        tectonic_activity:
+        volcanic_activity (str): a string describing the level of volcanic activity on this object
+        tectonic_activity (str): a string describing the level of tectonic activity on this object
     """
 
     def __init__(self, primary_planet: Planet) -> None:
@@ -930,24 +898,30 @@ class GasGiant(Planet):
     A Planet-type object containing methods and attributes for Gas Giant type planets
 
     Args:
-        primary_star:
-        orbit:
-        size:
+        primary_star (Star):  the Star object around which this object gravitates
+        orbit (float): the average orbital radius of this object around its primary_star
+        size (str): a string corresponding to the size of the object; "Tiny", "Small", "Standard" or "Large"
 
     Attributes:
-        type:
-        mass:
-        diameter:
-        surface_gravity:
-        orbital_period:
-        orbital_eccentricity:
-        tiny_sulfur_moon_possible:
-        moons:
-        ring_system:
-        total_tidal_effect:
-        rotation_period:
-        axial_tilt:
-        apparent_length:
+        primary_star (Star):  the Star object around which this object gravitates
+        semi_major_axis (float): the average orbital radius of this object around its primary_star
+        size (str): a string corresponding to the size of the object; "Tiny", "Small", "Standard" or "Large"
+        temperature (float): the average blackbody temperature of this object
+        type (str): a string corresponding to the type of object; i.e. "Gas Giant" or "Hadean"
+        moons (list[int]): a list containing the number of moons, major moons, or moonlets of this object
+        major_moons (list[MajorMoon]): a list containing the MajorMoon objects in rotation around this object
+        is_retrograde_orbit (bool): whether or not this object rotations opposite  of its primary_star
+        mass (float): the mass of the object in relation to the Earths mass
+        diameter (float): the diameter of this object in relation to the Earths diameter
+        surface_gravity (float): the gravity at this objects surface in relation to the Earths gravity
+        orbital_period (float): the average orbital period of this object around its primary_star
+        orbital_eccentricity (float): the eccentricity of this objects orbit aroudn its primary_star
+        is_tiny_sulfur_moon_possible (bool): whether or not a MajorMoon of the "Tiny (Sulfur)" type is legal for this object
+        ring_system (str): a string describing the visibility of this objects possible ring system
+        total_tidal_effect (int): an int used in calculating tidal effects on this object
+        rotation_period (float): the average orbital period of this object around its primary_star
+        axial_tilt (int): the axial tilt of this object in degrees
+        apparent_length (float): the length of a 'day' on this object
     """
 
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
@@ -967,12 +941,12 @@ class GasGiant(Planet):
         self.orbital_period = self.calculate_planetary_orbital_period()
         self.orbital_eccentricity = self.generate_planetary_orbital_eccentricity()
 
-        tiny_sulfur_moon_possible = True if roll_dice(1) <= 3 else False
+        is_tiny_sulfur_moon_possible = True if roll_dice(1) <= 3 else False
         self.moons = self.generate_moons()
         self.generate_major_moons()
         self.ring_system = self.calculate_ring_visibility()
 
-        if tiny_sulfur_moon_possible is True:
+        if is_tiny_sulfur_moon_possible is True:
             self.ice_or_sulfur()
 
         self.total_tidal_effect = self.calculate_total_tidal_effect()
@@ -1053,35 +1027,42 @@ class GasGiant(Planet):
 
 
 class Terrestrial(Planet):
+    World
     """
     A Planet-type object containing methods and attributes for Terrestrial planets.
 
     Args:
-        primary_star:
-        orbit:
-        size:
+        primary_star (Star):  the Star object around which this object gravitates
+        orbit (float): the average orbital radius of this object around its primary_star
+        size (str): a string corresponding to the size of the object; "Tiny", "Small", "Standard" or "Large"
 
     Attributes:
-        atmospheric_mass:
-        atmospheric_composition:
-        hydrographic_coverage:
-        surface_temperature:
-        climate_type:
-        density:
-        diameter:
-        surface_gravity:
-        mass:
-        orbital_period:
-        orbital_eccentricity:
-        moons:
-        major_moons:
-        total_tidal_effect:
-        rotation_period:
-        is_tidally_locked:
-        axial_tilt:
-        apparent_length:
-        volcanic_activity:
-        tectonic_activity:
+        primary_star (Star):  the Star object around which this object gravitates
+        semi_major_axis (float): the average orbital radius of this object around its primary_star
+        size (str): a string corresponding to the size of the object; "Tiny", "Small", "Standard" or "Large"
+        temperature (float): the average blackbody temperature of this object
+        type (str): a string corresponding to the type of object; i.e. "Gas Giant" or "Hadean"
+        moons (list[int]): a list containing the number of moons, major moons, or moonlets of this object
+        major_moons (list[MajorMoon]): a list containing the MajorMoon objects in rotation around this object
+        is_retrograde_orbit (bool): whether or not this object rotations opposite  of its primary_star
+        atmospheric_mass (float): the rough estimate of gaseous volatiles in this objects atmosphere
+        atmospheric_composition (list[str]): a list of strings describing the breathability of this objects atompshere
+        hydrographic_coverage (float): a float from 0 to 1 describing the percentage of the object covered in water
+        surface_temperature (float): the average surface temperature of the object
+        climate_type (str):  a string describing the average climate of this object
+        density (float):  the density of this object in relation to the Earths density
+        diameter (float): the diameter of this object in relation to the Earths diameter
+        surface_gravity (float): the gravity at this objects surface in relation to the Earths gravity
+        mass (float): the mass of the object in relation to the Earths mass
+        orbital_period (float): the average orbital period of this object around its primary_star
+        orbital_eccentricity (float): the eccentricity of this objects orbit aroudn its primary_star
+        total_tidal_effect (int): an int used in calculating tidal effects on this object
+        rotation_period (float): the average orbital period of this object around its primary_star
+        is_tidally_locked (bool): whether or not this object is tidally locked to its primary_star
+        axial_tilt (int): the axial tilt of this object in degrees
+        apparent_length (float): the length of a 'day' on this object
+        volcanic_activity (str): a string describing the level of volcanic activity on this object
+        tectonic_activity (str): a string describing the level of tectonic activity on this object
     """
 
     def __init__(self, primary_star: Star, orbit: float, size: str) -> None:
